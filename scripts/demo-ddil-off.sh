@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# demo-ddil-off.sh — Restore OCP connectivity to the satellite VM.
+# demo-ddil-off.sh — Restore OCP ground station connectivity on the satellite VM.
 #
-# Removes the iptables rule added by demo-ddil-on.sh. The satellite VM may
-# have rebooted into the offline image since then — virsh domifaddr re-queries
-# the current IP. The EDA reconnect rulebook detects the restored link within
-# ~60s and switches back to the online image + reboots (~90s total).
+# Removes the /etc/hosts poison entry added by demo-ddil-on.sh.
+# The VM may have rebooted into the offline image since then — virsh domifaddr
+# re-queries the current IP. SSH still works via the KVM bridge.
 #
-# Once back online, satellite-sim loads the offline-classified alert queue
-# and the ground station displays them with the offline analysis results.
+# The EDA reconnect rulebook detects the restored link within ~60s and
+# switches back to the online image + reboots (~90s total). On restart,
+# satellite-sim loads the offline-classified alert queue and flushes it to
+# the ground station.
 set -euo pipefail
 
 VM_IP=$(virsh --connect qemu:///system domifaddr satellite-sim \
@@ -25,22 +26,16 @@ if [ -z "$GS_HOST" ]; then
   exit 1
 fi
 
-GS_IP=$(dig +short "$GS_HOST" | grep -E '^[0-9]+\.' | head -1)
-if [ -z "$GS_IP" ]; then
-  echo "ERROR: could not resolve IP for $GS_HOST" >&2
-  exit 1
-fi
-
 echo "Satellite VM:    $VM_IP"
-echo "Ground station:  $GS_HOST ($GS_IP)"
+echo "Ground station:  $GS_HOST"
 echo ""
-echo "Restoring OCP connectivity..."
+echo "Restoring OCP connectivity — removing /etc/hosts block..."
 
 sshpass -p satellite ssh \
   -o StrictHostKeyChecking=no \
   -o ConnectTimeout=5 \
   demo@"$VM_IP" \
-  "sudo iptables -D OUTPUT -d $GS_IP -j DROP 2>/dev/null || true"
+  "sudo sed -i '/$GS_HOST/d' /etc/hosts"
 
 echo ""
 echo "Connectivity restored."
