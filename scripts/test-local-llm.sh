@@ -50,11 +50,15 @@ classification = classify_by_confidence(confidence)
 prompt = (
     "You are analyzing a satellite thermal IR sensor alert from a LEO reconnaissance satellite "
     "monitoring the Persian Gulf / Arabian Peninsula corridor for ground-based military activity.\n\n"
-    f"The sensor classified this detection as: {classification}\n"
-    f"Location: {lat}N {lon}E (Persian Gulf region)\n"
-    f"Satellite altitude: {alt_km}km\n\n"
-    "Write ONE sentence for a military operator explaining what ground-based activity "
-    "this thermal signature is consistent with. Be concise and operational. "
+    "Classification definitions:\n"
+    "- DIRECTED_ENERGY: high-energy laser, high-powered microwave, or electronic warfare emitter\n"
+    "- RF_EMITTER: active radar, communications jammer, or electronic warfare system\n"
+    "- THERMAL_PLUME: rocket motor, missile exhaust, or jet propulsion heat signature\n"
+    "- THERMAL_ANOMALY: vehicle engine heat, industrial activity, or unclassified heat source\n\n"
+    f"This detection was classified as: {classification}\n"
+    f"Location: {lat}N {lon}E (Persian Gulf region)\n\n"
+    "Write ONE sentence for a military operator describing what specific ground-based activity "
+    "this signature is consistent with, given the classification. Be concise and operational. "
     "Do not mention confidence or satellite altitude.\n\n"
     'Return ONLY: {"summary": "your one sentence here"}'
 )
