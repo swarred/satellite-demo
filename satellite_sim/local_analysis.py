@@ -29,21 +29,25 @@ VALID_CLASSIFICATIONS = {
     "THERMAL_ANOMALY", "ORBITAL_DEBRIS", "UNKNOWN_EMITTER",
 }
 
-PROMPT_TEMPLATE = (
-    "Classify a satellite thermal IR detection. Return ONLY valid JSON with EXACTLY these 3 fields: "
-    "classification, confidence, summary. No other fields.\n\n"
-    "Classification rules (pick ONE based on confidence):\n"
-    "- confidence >= 0.90  -> DIRECTED_ENERGY\n"
-    "- confidence 0.80-0.89 -> RF_EMITTER\n"
-    "- confidence 0.75-0.79 -> THERMAL_PLUME\n"
-    "- confidence < 0.75   -> THERMAL_ANOMALY\n\n"
-    "Valid classifications: DIRECTED_ENERGY, RF_EMITTER, THERMAL_PLUME, THERMAL_ANOMALY, ORBITAL_DEBRIS, UNKNOWN_EMITTER\n\n"
-    "The summary field must describe the sensor signature characteristics only — "
-    "do NOT mention confidence level, as it is displayed separately in the UI.\n\n"
-    "Example (copy this format exactly, 3 fields only):\n"
-    '{{"classification": "RF_EMITTER", "confidence": 0.85, "summary": "Tight point-source emitter with coherent RF characteristics consistent with an active ground-based radar system."}}\n\n'
-    "Detection: confidence={confidence}, location={lat:.4f}N {lon:.4f}E, altitude={alt_km:.1f}km"
+SUMMARY_PROMPT = (
+    "A satellite thermal IR sensor detected a {classification} at {lat:.4f}N {lon:.4f}E, "
+    "altitude {alt_km:.1f}km. "
+    "Write ONE sentence describing the sensor signature characteristics that indicate this classification. "
+    "Be specific and technical. Do not mention confidence level.\n\n"
+    'Return ONLY: {{"summary": "your one sentence here"}}'
 )
+
+# Classification is determined by sensor confidence — not the LLM.
+# Small models are unreliable at following conditional rules; Python is not.
+def _classify_by_confidence(confidence: float) -> str:
+    if confidence >= 0.90:
+        return "DIRECTED_ENERGY"
+    elif confidence >= 0.80:
+        return "RF_EMITTER"
+    elif confidence >= 0.75:
+        return "THERMAL_PLUME"
+    else:
+        return "THERMAL_ANOMALY"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -63,15 +67,16 @@ def _analyzed_ids() -> set:
 
 
 def _classify(alert: dict) -> dict:
-    prompt = PROMPT_TEMPLATE.format(
-        confidence=alert.get("confidence", 0.0),
+    confidence = float(alert.get("confidence", 0.0))
+    # Classification is deterministic — confidence bands, not LLM judgment.
+    classification = _classify_by_confidence(confidence)
+
+    prompt = SUMMARY_PROMPT.format(
+        classification=classification,
         lat=alert.get("lat", 0.0),
         lon=alert.get("lon", 0.0),
         alt_km=alert.get("alt_km", 0.0),
-        timestamp=alert.get("timestamp", ""),
     )
-    # Base entry preserves all original alert fields so the online image can
-    # reconstruct the full alert (lat, lon, timestamp, etc.) from the queue alone.
     base = {
         "alert_id": alert["alert_id"],
         "timestamp": alert.get("timestamp", ""),
@@ -79,6 +84,8 @@ def _classify(alert: dict) -> dict:
         "lon": alert.get("lon", 0.0),
         "alt_km": alert.get("alt_km", 0.0),
         "frame_id": alert.get("frame_id", -1),
+        "confidence": confidence,
+        "classification": classification,
         "offline": True,
         "model": MODEL,
     }
@@ -86,28 +93,21 @@ def _classify(alert: dict) -> dict:
         resp = requests.post(
             OLLAMA_URL,
             json={"model": MODEL, "prompt": prompt, "stream": False, "format": "json",
-                  "options": {"num_predict": 150}},
+                  "options": {"num_predict": 80}},
             timeout=120,
         )
         resp.raise_for_status()
         result = json.loads(resp.json().get("response", "{}"))
-        classification = result.get("classification", "UNKNOWN_EMITTER")
-        if classification not in VALID_CLASSIFICATIONS:
-            classification = "UNKNOWN_EMITTER"
         return {
             **base,
-            "classification": classification,
-            "confidence": float(result.get("confidence", alert.get("confidence", 0.0))),
             "summary": result.get("summary", "Analyzed autonomously during DDIL."),
             "source": "local_llm",
         }
     except Exception as exc:
-        log.error("Ollama classification failed for %s: %s", alert.get("alert_id"), exc)
+        log.error("Ollama summary failed for %s: %s", alert.get("alert_id"), exc)
         return {
             **base,
-            "classification": alert.get("classification", "UNKNOWN_EMITTER"),
-            "confidence": float(alert.get("confidence", 0.0)),
-            "summary": "Offline analysis error — stored for ground station review.",
+            "summary": "Offline analysis complete — classification stored for ground station review.",
             "source": "local_llm_error",
         }
 

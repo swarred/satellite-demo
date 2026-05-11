@@ -37,20 +37,22 @@ import json, sys, urllib.request, urllib.error
 
 model, url, confidence, lat, lon, alt_km, timestamp = sys.argv[1:]
 
+# Classification is deterministic — Python decides, not the LLM
+def classify_by_confidence(c):
+    c = float(c)
+    if c >= 0.90: return "DIRECTED_ENERGY"
+    if c >= 0.80: return "RF_EMITTER"
+    if c >= 0.75: return "THERMAL_PLUME"
+    return "THERMAL_ANOMALY"
+
+classification = classify_by_confidence(confidence)
+
 prompt = (
-    "Classify a satellite thermal IR detection. Return ONLY valid JSON with EXACTLY these 3 fields: "
-    "classification, confidence, summary. No other fields.\n\n"
-    "Classification rules (pick ONE based on confidence):\n"
-    "- confidence >= 0.90  -> DIRECTED_ENERGY\n"
-    "- confidence 0.80-0.89 -> RF_EMITTER\n"
-    "- confidence 0.75-0.79 -> THERMAL_PLUME\n"
-    "- confidence < 0.75   -> THERMAL_ANOMALY\n\n"
-    "Valid classifications: DIRECTED_ENERGY, RF_EMITTER, THERMAL_PLUME, THERMAL_ANOMALY, ORBITAL_DEBRIS, UNKNOWN_EMITTER\n\n"
-    "The summary field must describe the sensor signature characteristics only — "
-    "do NOT mention confidence level, as it is displayed separately in the UI.\n\n"
-    'Example (copy this format exactly, 3 fields only):\n'
-    '{"classification": "RF_EMITTER", "confidence": 0.85, "summary": "Tight point-source emitter with coherent RF characteristics consistent with an active ground-based radar system."}\n\n'
-    f"Detection: confidence={confidence}, location={lat}N {lon}E, altitude={alt_km}km"
+    f"A satellite thermal IR sensor detected a {classification} at {lat}N {lon}E, "
+    f"altitude {alt_km}km. "
+    "Write ONE sentence describing the sensor signature characteristics that indicate this classification. "
+    "Be specific and technical. Do not mention confidence level.\n\n"
+    'Return ONLY: {"summary": "your one sentence here"}'
 )
 
 payload = json.dumps({
@@ -58,7 +60,7 @@ payload = json.dumps({
     "prompt": prompt,
     "stream": False,
     "format": "json",
-    "options": {"num_predict": 150},
+    "options": {"num_predict": 80},
 }).encode()
 
 try:
@@ -78,17 +80,13 @@ except (json.JSONDecodeError, KeyError) as e:
     print(f"  Raw: {data.get('response', '')}", file=sys.stderr)
     sys.exit(1)
 
-print(json.dumps(result, indent=2))
-
-valid = {
-    "DIRECTED_ENERGY", "RF_EMITTER", "THERMAL_PLUME",
-    "THERMAL_ANOMALY", "ORBITAL_DEBRIS", "UNKNOWN_EMITTER",
-}
-c = result.get("classification", "")
-if c in valid:
-    print(f"  [OK] classification: {c}", file=sys.stderr)
+summary = result.get("summary", "")
+print(f"  Classification (Python): {classification}", file=sys.stderr)
+print(json.dumps({"classification": classification, "summary": summary}, indent=2))
+if summary:
+    print(f"  [OK] summary generated", file=sys.stderr)
 else:
-    print(f"  [FAIL] invalid classification: {repr(c)}", file=sys.stderr)
+    print(f"  [FAIL] no summary in response", file=sys.stderr)
     sys.exit(1)
 PYEOF
 }
