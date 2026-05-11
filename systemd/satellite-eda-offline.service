@@ -1,0 +1,19 @@
+[Unit]
+Description=Satellite Reconnect Monitor (Event-Driven Ansible)
+After=network-online.target satellite-sim.service
+Wants=network-online.target
+ConditionPathExists=/etc/satellite-eda/vars.yml
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/ansible-rulebook \
+    --rulebook /etc/satellite-eda/reconnect-detect.yml \
+    -i /etc/satellite-eda/inventory \
+    --vars /etc/satellite-eda/vars.yml
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

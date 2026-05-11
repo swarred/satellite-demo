@@ -1,0 +1,20 @@
+[Unit]
+Description=Satellite DDIL Event Monitor (Event-Driven Ansible)
+After=network-online.target satellite-sim.service
+Wants=network-online.target
+# Only run when vars.yml has been written by the automation playbook
+ConditionPathExists=/etc/satellite-eda/vars.yml
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/ansible-rulebook \
+    --rulebook /etc/satellite-eda/ddil-detect.yml \
+    -i /etc/satellite-eda/inventory \
+    --vars /etc/satellite-eda/vars.yml
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

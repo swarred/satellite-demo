@@ -45,7 +45,33 @@ COPY skupper/connector.yaml /etc/skupper/connector.yaml
 # Install systemd units and enable them
 COPY systemd/satellite-sim.service /usr/lib/systemd/system/satellite-sim.service
 COPY systemd/skupper-init.service  /usr/lib/systemd/system/skupper-init.service
+
+# ── Event-Driven Ansible (DDIL detection) ────────────────────────────────────
+# ansible-rulebook watches the ground station health endpoint; on connectivity
+# loss it stages the offline image and reboots into autonomous DDIL mode.
+RUN dnf -y install java-21-openjdk-headless && \
+    pip3 install --no-cache-dir ansible-rulebook ansible-runner && \
+    ansible-galaxy collection install ansible.eda && \
+    dnf clean all
+
+ARG GROUND_STATION_URL=https://ground-station-satellite-ground.apps.example.com
+
+RUN mkdir -p /etc/satellite-eda
+COPY eda/ddil-detect.yml         /etc/satellite-eda/ddil-detect.yml
+COPY eda/bootc-switch-offline.yml /etc/satellite-eda/bootc-switch-offline.yml
+COPY eda/inventory               /etc/satellite-eda/inventory
+
+# Bake the ground station URL so EDA knows what to probe (no runtime config needed)
+RUN echo "ground_station_url: \"${GROUND_STATION_URL}\"" > /etc/satellite-eda/vars.yml
+
+# Allow insecure pulls from the build host's local registry over KVM bridge
+COPY containers/local-registry.conf /etc/containers/registries.conf.d/local-registry.conf
+
+COPY systemd/satellite-eda-online.service \
+     /usr/lib/systemd/system/satellite-eda.service
+
 RUN systemctl enable satellite-sim.service skupper-init.service \
+                    satellite-eda.service \
                     cloud-init-local.service cloud-init.service \
                     cloud-config.service cloud-final.service
 

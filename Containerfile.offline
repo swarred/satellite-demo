@@ -1,0 +1,76 @@
+# Containerfile.offline — Satellite autonomous offline image
+#
+# Used when the satellite switches to DDIL mode via bootc switch.
+# No Skupper/RHSI — the satellite operates independently.
+# Includes Ollama + phi4-mini (baked in) for local alert classification,
+# an EDA reconnect rulebook that watches for OCP connectivity restoration,
+# and the persistent alert log that carries over from the online image.
+
+FROM registry.redhat.io/rhel10/rhel-bootc:latest
+
+# Install Python and pip dependencies
+RUN dnf -y install python3 python3-pip cloud-init && \
+    dnf clean all
+
+COPY requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir --prefix=/usr/local -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
+
+# Install application
+COPY satellite_sim/ /opt/satellite-sim/satellite_sim/
+
+# Demo user — same credentials as online image for SSH access during DDIL
+RUN useradd -m -G wheel demo && \
+    echo 'demo:satellite' | chpasswd && \
+    echo '%wheel ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/wheel-nopasswd
+
+# ── Ollama + phi4-mini (baked in for air-gap operation) ───────────────────────
+# The install script creates the ollama user/group and systemd service.
+# We pull the model during build so it's available offline at runtime.
+# Models land in /usr/share/ollama/.ollama (the ollama user's home).
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
+RUN mkdir -p /usr/share/ollama/.ollama && \
+    HOME=/usr/share/ollama OLLAMA_HOST=127.0.0.1:11434 \
+    ollama serve &>/tmp/ollama-build.log & \
+    OLLAMA_PID=$! && \
+    sleep 15 && \
+    HOME=/usr/share/ollama ollama pull phi4-mini:latest && \
+    kill $OLLAMA_PID 2>/dev/null || true && \
+    chown -R ollama:ollama /usr/share/ollama/.ollama
+
+# ── Event-Driven Ansible (reconnect detection) ────────────────────────────────
+RUN dnf -y install java-21-openjdk-headless && \
+    pip3 install --no-cache-dir ansible-rulebook ansible-runner && \
+    ansible-galaxy collection install ansible.eda && \
+    dnf clean all
+
+# EDA rulebook and Ansible playbook for reconnect → online switch
+RUN mkdir -p /etc/satellite-eda
+COPY eda/reconnect-detect.yml    /etc/satellite-eda/reconnect-detect.yml
+COPY eda/bootc-switch-online.yml /etc/satellite-eda/bootc-switch-online.yml
+COPY eda/inventory               /etc/satellite-eda/inventory
+
+# Allow insecure pulls from the build host's local registry over KVM bridge
+COPY containers/local-registry.conf /etc/containers/registries.conf.d/local-registry.conf
+
+# ── Systemd units ─────────────────────────────────────────────────────────────
+COPY systemd/satellite-sim.service \
+     /usr/lib/systemd/system/satellite-sim.service
+COPY systemd/satellite-local-analysis.service \
+     /usr/lib/systemd/system/satellite-local-analysis.service
+COPY systemd/satellite-eda-offline.service \
+     /usr/lib/systemd/system/satellite-eda.service
+
+RUN systemctl enable satellite-sim.service \
+                    satellite-local-analysis.service \
+                    satellite-eda.service \
+                    ollama.service \
+                    cloud-init-local.service cloud-init.service \
+                    cloud-config.service cloud-final.service
+
+EXPOSE 8080
+
+LABEL io.redhat.component="satellite-sim-offline" \
+      io.redhat.version="0.1.1-offline" \
+      description="USSF satellite simulation — autonomous offline mode with local LLM (DDIL)"

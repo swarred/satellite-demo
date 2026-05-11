@@ -1,0 +1,25 @@
+---
+# bootc-switch-online.yml — triggered by EDA on connectivity restore
+# Stages the online image and reboots back into ground-station-connected mode.
+- name: Switch satellite back to online mode
+  hosts: localhost
+  tasks:
+    - name: Log reconnect event
+      ansible.builtin.shell:
+        cmd: logger -t satellite-eda "CONNECTIVITY RESTORED — staging online image for ground station sync"
+
+    - name: Stage online satellite image
+      ansible.builtin.command:
+        cmd: bootc switch --target-no-signature-verification 192.168.122.1:5000/satellite-sim:online
+      become: true
+
+    - name: Log pre-reboot
+      ansible.builtin.shell:
+        cmd: logger -t satellite-eda "Online image staged — rebooting to sync offline alerts to ground station"
+
+    - name: Reboot into online mode
+      ansible.builtin.shell:
+        cmd: "sleep 2 && systemctl reboot"
+      async: 5
+      poll: 0
+      become: true

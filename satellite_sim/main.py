@@ -13,7 +13,9 @@ Endpoints:
   GET  /healthz            liveness probe
 """
 
+import json
 import logging
+import os
 import threading
 import time
 from collections import deque
@@ -37,6 +39,11 @@ MAX_ALERTS = 200
 # Alert cooldown — don't fire again for this many seconds after a detection
 ALERT_COOLDOWN = 60
 
+# Persistent state directory (created by StateDirectory= in the systemd unit)
+STATE_DIR = "/var/lib/satellite-sim"
+ALERTS_FILE = os.path.join(STATE_DIR, "alerts.jsonl")
+OFFLINE_QUEUE = os.path.join(STATE_DIR, "offline-queue.jsonl")
+
 app = Flask(__name__)
 
 # Shared state — written by sim thread, read by Flask handlers
@@ -48,6 +55,52 @@ _frames: dict = {}   # alert_id → PNG bytes; evicted in step with _alerts
 
 # Set by /orbit/reset to trigger a SatelliteTracker reinit on next sim tick
 _orbit_reset = threading.Event()
+
+
+def _load_offline_queue():
+    """On startup, inject any alerts classified during DDIL offline mode."""
+    if not os.path.exists(OFFLINE_QUEUE):
+        return
+    try:
+        with open(OFFLINE_QUEUE) as f:
+            entries = [json.loads(line) for line in f if line.strip()]
+        if not entries:
+            return
+        log.info("Loading %d offline-classified alerts from %s", len(entries), OFFLINE_QUEUE)
+        # Reconstruct alert dicts merging offline analysis metadata
+        with _lock:
+            for entry in reversed(entries):  # reversed so newest ends up at front
+                alert = {
+                    "alert_id": entry["alert_id"],
+                    "timestamp": entry.get("timestamp", ""),
+                    "confidence": entry["confidence"],
+                    "lat": entry.get("lat", 0.0),
+                    "lon": entry.get("lon", 0.0),
+                    "alt_km": entry.get("alt_km", 0.0),
+                    "frame_id": entry.get("frame_id", -1),
+                    "classification": entry["classification"],
+                    "routed": False,
+                    "offline": True,
+                    "offline_summary": entry.get("summary", "Analyzed autonomously during DDIL."),
+                    "offline_model": entry.get("model", "phi4-mini"),
+                }
+                _alerts.appendleft(alert)
+                _status["alert_count"] += 1
+        # Archive the queue so it isn't reloaded on next restart
+        os.rename(OFFLINE_QUEUE, OFFLINE_QUEUE + ".loaded")
+        log.info("Offline queue loaded and archived — alerts will be forwarded to ground station")
+    except Exception:
+        log.exception("Failed to load offline queue")
+
+
+def _persist_alert(alert: dict):
+    """Append a detection alert to the persistent JSONL log."""
+    try:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        with open(ALERTS_FILE, "a") as f:
+            f.write(json.dumps(alert) + "\n")
+    except Exception:
+        log.exception("Failed to persist alert %s", alert.get("alert_id"))
 
 
 # ── Simulation loop ────────────────────────────────────────────────────────────
@@ -98,7 +151,8 @@ def _sim_loop():
                 )
 
                 if detection:
-                    _alerts.appendleft(asdict(detection))
+                    alert_dict = asdict(detection)
+                    _alerts.appendleft(alert_dict)
                     _frames[detection.alert_id] = imagery.frame_to_png(
                         frame, detection.frame_id,
                         detection.lat, detection.lon, detection.timestamp,
@@ -112,6 +166,7 @@ def _sim_loop():
                         "THREAT DETECTED — confidence=%.3f lat=%.4f lon=%.4f",
                         detection.confidence, detection.lat, detection.lon,
                     )
+                    _persist_alert(alert_dict)
 
         except Exception:
             log.exception("Error in simulation tick")
@@ -232,6 +287,8 @@ def demo_trigger():
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    _load_offline_queue()
+
     sim_thread = threading.Thread(target=_sim_loop, daemon=True, name="sim-loop")
     sim_thread.start()
 

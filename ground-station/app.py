@@ -171,6 +171,15 @@ def demo_trigger():
 # ── Analysis ──────────────────────────────────────────────────────────────────
 
 def _run_analysis(alert):
+    # Alerts classified autonomously during DDIL carry their analysis inline
+    if alert.get("offline"):
+        return {
+            "text": alert.get("offline_summary", "Analyzed autonomously during DDIL — no ground station connectivity."),
+            "classification": alert.get("classification", "UNKNOWN_EMITTER"),
+            "model": f"{alert.get('offline_model', 'phi4-mini')} (offline local LLM)",
+            "latency": "0.0s",
+            "source": "offline_llm",
+        }
     if MAAS_URL and MAAS_KEY:
         result = _maas_analysis(alert)
         if result:
