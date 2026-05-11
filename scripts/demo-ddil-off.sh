@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# demo-ddil-off.sh — Restore OCP ground station connectivity on the satellite VM.
+# demo-ddil-off.sh — Restore OCP connectivity on the satellite VM.
 #
-# Removes the /etc/hosts poison entry added by demo-ddil-on.sh.
-# The VM may have rebooted into the offline image since then — virsh domifaddr
-# re-queries the current IP. SSH still works via the KVM bridge.
+# Removes the /etc/hosts poison entry so the EDA reconnect rulebook detects
+# the restored link within ~20s and switches back to the online image + reboots.
 #
-# The EDA reconnect rulebook detects the restored link within ~60s and
-# switches back to the online image + reboots (~90s total). On restart,
-# satellite-sim loads the offline-classified alert queue and flushes it to
-# the ground station.
+# Skupper does NOT need to be restarted manually — skupper-init.service runs
+# automatically when the VM reboots into the online image and reconnects.
+# The ground station will show LINK UP once Skupper re-establishes (~60-90s).
+#
+# Offline-classified alerts are loaded by satellite-sim on startup and appear
+# in the ground station UI automatically.
 set -euo pipefail
 
 VM_IP=$(virsh --connect qemu:///system domifaddr satellite-sim \
@@ -29,7 +30,7 @@ fi
 echo "Satellite VM:    $VM_IP"
 echo "Ground station:  $GS_HOST"
 echo ""
-echo "Restoring OCP connectivity — removing /etc/hosts block..."
+echo "Restoring connectivity — removing /etc/hosts block..."
 
 sshpass -p satellite ssh \
   -o StrictHostKeyChecking=no \
@@ -38,10 +39,11 @@ sshpass -p satellite ssh \
   "sudo sed -i '/$GS_HOST/d' /etc/hosts"
 
 echo ""
-echo "Connectivity restored."
+echo "Connectivity restored:"
+echo "  - EDA reconnect rulebook will detect within ~20s"
+echo "  - VM will reboot into online image (~90s)"
+echo "  - Skupper reconnects automatically on boot"
+echo "  - Ground station shows LINK UP once Skupper is established"
+echo "  - Offline-classified alerts appear in the ground station UI"
 echo ""
-echo "EDA rulebook will detect the restored link within ~60s."
-echo "VM will automatically reboot into online mode (~90s total)."
-echo "Offline-classified alerts will appear in the ground station UI after reboot."
-echo ""
-echo "Watch reconnect: ssh demo@$VM_IP 'sudo journalctl -fu satellite-eda'"
+echo "Watch reconnect: sshpass -p satellite ssh demo@$VM_IP 'sudo journalctl -fu satellite-eda'"
