@@ -1,0 +1,22 @@
+[Unit]
+Description=Pre-warm local LLM model into memory at boot
+After=ollama.service
+Requires=ollama.service
+Before=satellite-local-analysis.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c '\
+  for i in $(seq 1 12); do \
+    curl -sf http://localhost:11434/api/tags &>/dev/null && break; \
+    sleep 5; \
+  done && \
+  curl -s http://localhost:11434/api/generate \
+    -d "{\"model\":\"llama3.2:1b\",\"prompt\":\"hi\",\"stream\":false,\"options\":{\"num_predict\":1}}" \
+    -o /dev/null'
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

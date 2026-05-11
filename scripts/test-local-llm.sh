@@ -4,7 +4,7 @@
 # format=json enforced, so output matches exactly what the service will produce.
 set -euo pipefail
 
-MODEL="phi4-mini:latest"
+MODEL="llama3.2:1b"
 OLLAMA_URL="http://localhost:11434/api/generate"
 
 # ── Install Ollama if needed ──────────────────────────────────────────────────
@@ -22,8 +22,8 @@ if ! curl -sf http://localhost:11434/api/tags &>/dev/null; then
 fi
 
 # ── Pull model if needed ──────────────────────────────────────────────────────
-if ! ollama list 2>/dev/null | grep -q "phi4-mini"; then
-  echo "Pulling $MODEL (this downloads ~2.5 GB — first run only)..."
+if ! ollama list 2>/dev/null | grep -q "llama3.2:1b"; then
+  echo "Pulling $MODEL (this downloads ~900 MB — first run only)..."
   ollama pull "$MODEL"
 fi
 
@@ -66,6 +66,7 @@ payload = json.dumps({
     "prompt": prompt,
     "stream": False,
     "format": "json",
+    "options": {"num_predict": 80},
 }).encode()
 
 try:

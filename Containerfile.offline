@@ -71,11 +71,14 @@ COPY systemd/satellite-local-analysis.service \
      /usr/lib/systemd/system/satellite-local-analysis.service
 COPY systemd/satellite-eda-offline.service \
      /usr/lib/systemd/system/satellite-eda.service
+COPY systemd/satellite-llm-warmup.service \
+     /usr/lib/systemd/system/satellite-llm-warmup.service
 
 RUN systemctl enable satellite-sim.service \
                     satellite-local-analysis.service \
                     satellite-eda.service \
                     ollama.service \
+                    satellite-llm-warmup.service \
                     cloud-init-local.service cloud-init.service \
                     cloud-config.service cloud-final.service
 

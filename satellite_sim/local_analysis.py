@@ -21,7 +21,7 @@ STATE_DIR = "/var/lib/satellite-sim"
 ALERTS_FILE = os.path.join(STATE_DIR, "alerts.jsonl")
 OFFLINE_QUEUE = os.path.join(STATE_DIR, "offline-queue.jsonl")
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "phi4-mini:latest"
+MODEL = "llama3.2:1b"
 POLL_INTERVAL = 10  # seconds between queue checks
 
 VALID_CLASSIFICATIONS = {
@@ -93,8 +93,9 @@ def _classify(alert: dict) -> dict:
     try:
         resp = requests.post(
             OLLAMA_URL,
-            json={"model": MODEL, "prompt": prompt, "stream": False, "format": "json"},
-            timeout=300,
+            json={"model": MODEL, "prompt": prompt, "stream": False, "format": "json",
+                  "options": {"num_predict": 80}},
+            timeout=120,
         )
         resp.raise_for_status()
         result = json.loads(resp.json().get("response", "{}"))
