@@ -10,3 +10,6 @@ __pycache__/
 
 # Developer session notes — environment-specific, not user-facing docs
 BUILD-LOG.md
+
+# Staged build artefacts — copied here by automation before image build, never committed
+build/

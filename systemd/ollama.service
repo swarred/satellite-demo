@@ -9,7 +9,8 @@ User=ollama
 Group=ollama
 Restart=always
 RestartSec=3
-Environment="HOME=/usr/share/ollama"
+Environment="HOME=/var/lib/ollama"
+Environment="OLLAMA_MODELS=/var/lib/ollama/models"
 
 [Install]
 WantedBy=multi-user.target
