@@ -15,7 +15,7 @@
     - name: Restore online mode when connectivity returns
       condition: event.url_check.status == "OK"
       throttle:
-        once_within: 90
+        once_within: "90 seconds"
         group_by_attributes: []
       actions:
         - run_playbook:

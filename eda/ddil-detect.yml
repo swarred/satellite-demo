@@ -15,7 +15,7 @@
     - name: Enter autonomous offline mode on DDIL
       condition: event.url_check.status == "Failed"
       throttle:
-        once_within: 90
+        once_within: "90 seconds"
         group_by_attributes: []
       actions:
         - run_playbook:
