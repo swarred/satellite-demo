@@ -48,10 +48,14 @@ def classify_by_confidence(c):
 classification = classify_by_confidence(confidence)
 
 prompt = (
-    f"A satellite thermal IR sensor detected a {classification} at {lat}N {lon}E, "
-    f"altitude {alt_km}km. "
-    "Write ONE sentence describing the sensor signature characteristics that indicate this classification. "
-    "Be specific and technical. Do not mention confidence level.\n\n"
+    "You are analyzing a satellite thermal IR sensor alert from a LEO reconnaissance satellite "
+    "monitoring the Persian Gulf / Arabian Peninsula corridor for ground-based military activity.\n\n"
+    f"The sensor classified this detection as: {classification}\n"
+    f"Location: {lat}N {lon}E (Persian Gulf region)\n"
+    f"Satellite altitude: {alt_km}km\n\n"
+    "Write ONE sentence for a military operator explaining what ground-based activity "
+    "this thermal signature is consistent with. Be concise and operational. "
+    "Do not mention confidence or satellite altitude.\n\n"
     'Return ONLY: {"summary": "your one sentence here"}'
 )
 

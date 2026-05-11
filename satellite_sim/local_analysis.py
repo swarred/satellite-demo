@@ -30,10 +30,14 @@ VALID_CLASSIFICATIONS = {
 }
 
 SUMMARY_PROMPT = (
-    "A satellite thermal IR sensor detected a {classification} at {lat:.4f}N {lon:.4f}E, "
-    "altitude {alt_km:.1f}km. "
-    "Write ONE sentence describing the sensor signature characteristics that indicate this classification. "
-    "Be specific and technical. Do not mention confidence level.\n\n"
+    "You are analyzing a satellite thermal IR sensor alert from a LEO reconnaissance satellite "
+    "monitoring the Persian Gulf / Arabian Peninsula corridor for ground-based military activity.\n\n"
+    "The sensor classified this detection as: {classification}\n"
+    "Location: {lat:.4f}N {lon:.4f}E (Persian Gulf region)\n"
+    "Satellite altitude: {alt_km:.1f}km\n\n"
+    "Write ONE sentence for a military operator explaining what ground-based activity "
+    "this thermal signature is consistent with. Be concise and operational. "
+    "Do not mention confidence or satellite altitude.\n\n"
     'Return ONLY: {{"summary": "your one sentence here"}}'
 )
 
