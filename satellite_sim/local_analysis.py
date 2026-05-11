@@ -38,8 +38,10 @@ PROMPT_TEMPLATE = (
     "- confidence 0.75-0.79 -> THERMAL_PLUME\n"
     "- confidence < 0.75   -> THERMAL_ANOMALY\n\n"
     "Valid classifications: DIRECTED_ENERGY, RF_EMITTER, THERMAL_PLUME, THERMAL_ANOMALY, ORBITAL_DEBRIS, UNKNOWN_EMITTER\n\n"
+    "The summary field must describe the sensor signature characteristics only — "
+    "do NOT mention confidence level, as it is displayed separately in the UI.\n\n"
     "Example (copy this format exactly, 3 fields only):\n"
-    '{{"classification": "RF_EMITTER", "confidence": 0.85, "summary": "Coherent RF signature consistent with active radar."}}\n\n'
+    '{{"classification": "RF_EMITTER", "confidence": 0.85, "summary": "Tight point-source emitter with coherent RF characteristics consistent with an active ground-based radar system."}}\n\n'
     "Detection: confidence={confidence}, location={lat:.4f}N {lon:.4f}E, altitude={alt_km:.1f}km"
 )
 
