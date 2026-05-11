@@ -57,9 +57,10 @@ RUN dnf -y install java-21-openjdk-headless ansible-core && \
 ARG GROUND_STATION_URL=https://ground-station-satellite-ground.apps.example.com
 
 RUN mkdir -p /etc/satellite-eda
-COPY eda/ddil-detect.yml         /etc/satellite-eda/ddil-detect.yml
+COPY eda/ddil-detect.yml          /etc/satellite-eda/ddil-detect.yml
 COPY eda/bootc-switch-offline.yml /etc/satellite-eda/bootc-switch-offline.yml
-COPY eda/inventory               /etc/satellite-eda/inventory
+COPY eda/inventory                /etc/satellite-eda/inventory
+COPY eda/connectivity_check.py    /etc/satellite-eda/connectivity_check.py
 
 # Bake the ground station URL so EDA knows what to probe (no runtime config needed)
 RUN echo "ground_station_url: \"${GROUND_STATION_URL}\"" > /etc/satellite-eda/vars.yml

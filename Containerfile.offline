@@ -51,9 +51,10 @@ RUN dnf -y install java-21-openjdk-headless ansible-core && \
 
 # EDA rulebook and Ansible playbook for reconnect → online switch
 RUN mkdir -p /etc/satellite-eda
-COPY eda/reconnect-detect.yml    /etc/satellite-eda/reconnect-detect.yml
-COPY eda/bootc-switch-online.yml /etc/satellite-eda/bootc-switch-online.yml
-COPY eda/inventory               /etc/satellite-eda/inventory
+COPY eda/reconnect-detect.yml     /etc/satellite-eda/reconnect-detect.yml
+COPY eda/bootc-switch-online.yml  /etc/satellite-eda/bootc-switch-online.yml
+COPY eda/inventory                /etc/satellite-eda/inventory
+COPY eda/connectivity_check.py    /etc/satellite-eda/connectivity_check.py
 
 # Allow insecure pulls from the build host's local registry over KVM bridge
 COPY containers/local-registry.conf /etc/containers/registries.conf.d/local-registry.conf

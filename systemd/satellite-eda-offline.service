@@ -10,7 +10,8 @@ WorkingDirectory=/etc/satellite-eda
 ExecStart=/usr/local/bin/ansible-rulebook \
     --rulebook /etc/satellite-eda/reconnect-detect.yml \
     -i /etc/satellite-eda/inventory \
-    --vars /etc/satellite-eda/vars.yml
+    --vars /etc/satellite-eda/vars.yml \
+    -S /etc/satellite-eda
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
