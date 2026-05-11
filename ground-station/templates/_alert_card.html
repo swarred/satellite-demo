@@ -6,6 +6,7 @@
     padding: 12px 14px;
   }
   .alert-card.classified { border-left-color: var(--green); }
+  .alert-card.offline    { border-left-color: #4ad4d4; }
   .alert-card.routed {
     border-left-color: #3a3a3a;
     opacity: 0.55;
@@ -25,6 +26,7 @@
     font-weight: bold;
   }
   .card-class.resolved { color: var(--green); }
+  .card-class.offline  { color: #4ad4d4; }
   .alert-card.routed .card-class { color: var(--dim); }
 
   .card-meta {
@@ -81,8 +83,9 @@
     padding: 2px 8px;
     display: inline-block;
   }
-  .badge-pending { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-dim); }
-  .badge-routed  { background: #1a1a1a;       color: var(--dim); border: 1px solid var(--border); }
+  .badge-pending  { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-dim); }
+  .badge-routed   { background: #1a1a1a;        color: var(--dim); border: 1px solid var(--border); }
+  .badge-offline  { background: #001a1a;        color: #4ad4d4;    border: 1px solid #1a5555; }
 
   .btn-ack {
     border-color: var(--border);
@@ -174,12 +177,13 @@
 </style>
 
 {% set routed = alert.get('routed', False) %}
+{% set offline = alert.get('offline', False) %}
 {% set classified = alert.get('classification', 'UNKNOWN_EMITTER') != 'UNKNOWN_EMITTER' %}
-<div class="alert-card{{ ' routed' if routed else (' classified' if classified else '') }}" id="card-{{ alert.alert_id }}">
+<div class="alert-card{{ ' routed' if routed else (' offline' if offline else (' classified' if classified else '')) }}" id="card-{{ alert.alert_id }}">
 
   <div class="card-top">
     <div>
-      <div class="card-class" id="card-class-{{ alert.alert_id }}">{{ alert.get('classification', 'UNKNOWN') }}</div>
+      <div class="card-class{{ ' offline' if offline else (' resolved' if classified else '') }}" id="card-class-{{ alert.alert_id }}">{{ alert.get('classification', 'UNKNOWN') }}</div>
     </div>
     <div class="card-meta">
       <div>#{{ alert.alert_id }}</div>
@@ -187,6 +191,13 @@
     </div>
   </div>
 
+  {% if offline %}
+  <div style="font-family:var(--mono);font-size:9px;color:#1a5555;letter-spacing:1px;
+              margin-bottom:10px;padding:4px 8px;border:1px solid #1a5555;
+              background:#001a1a;display:inline-block;">
+    NO IMAGERY — ANALYZED AUTONOMOUSLY IN DDIL MODE
+  </div>
+  {% else %}
   <div class="imagery-chip" id="chip-{{ alert.alert_id }}"
        onclick="document.getElementById('lb-{{ alert.alert_id }}').classList.add('open')">
     <img src="/frames/{{ alert.alert_id }}"
@@ -198,6 +209,7 @@
        onclick="this.classList.remove('open')">
     <img src="/frames/{{ alert.alert_id }}" alt="IR frame {{ alert.alert_id }}">
   </div>
+  {% endif %}
 
   <div class="card-coords">
     {{ "%.4f"|format(alert.lat|abs) }}°{{ 'N' if alert.lat >= 0 else 'S' }}&nbsp;&nbsp;
@@ -214,9 +226,12 @@
   </div>
 
   <div class="card-actions">
+    {% if offline %}
+      <span class="badge badge-offline">OFFLINE</span>
+    {% endif %}
     {% if routed %}
       <span class="badge badge-routed">ROUTED</span>
-    {% else %}
+    {% elif not offline %}
       <span class="badge badge-pending">PENDING</span>
       <button class="btn btn-ack"
               hx-post="/alerts/{{ alert.alert_id }}/ack"
@@ -225,6 +240,7 @@
         ACK
       </button>
     {% endif %}
+
     <button class="btn btn-analyze"
             hx-post="/alerts/{{ alert.alert_id }}/analyze"
             hx-target="#card-{{ alert.alert_id }}"

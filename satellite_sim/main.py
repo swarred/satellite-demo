@@ -83,6 +83,7 @@ def _load_offline_queue():
                     "offline": True,
                     "offline_summary": entry.get("summary", "Analyzed autonomously during DDIL."),
                     "offline_model": entry.get("model", "phi4-mini"),
+                    "offline_source": entry.get("source", "local_llm"),
                 }
                 _alerts.appendleft(alert)
                 _status["alert_count"] += 1
@@ -239,6 +240,49 @@ def clear_alerts():
         _status["last_detection"] = None
     log.info("Alerts cleared by operator")
     return jsonify({"status": "cleared"})
+
+
+@app.post("/demo/ddil-on")
+def demo_ddil_on():
+    """Operator control: simulate DDIL by stopping Skupper and poisoning the ground station hostname.
+
+    Reads the ground_station_url from /etc/satellite-eda/vars.yml so the correct
+    hostname is blocked. The EDA rulebook detects the connectivity loss within ~60s
+    and automatically stages the offline image + reboots.
+    """
+    import subprocess
+    from urllib.parse import urlparse
+
+    gs_host = None
+    try:
+        with open("/etc/satellite-eda/vars.yml") as f:
+            for line in f:
+                if line.startswith("ground_station_url:"):
+                    url = line.split(":", 1)[1].strip().strip('"\'')
+                    gs_host = urlparse(url).hostname
+                    break
+    except Exception as exc:
+        log.error("Could not read ground_station_url from vars.yml: %s", exc)
+
+    if not gs_host:
+        return jsonify({"error": "ground_station_url not configured in /etc/satellite-eda/vars.yml"}), 500
+
+    # Stop Skupper — ground station shows LINK DOWN immediately
+    subprocess.run(["systemctl", "stop", "skupper-satellite-vm.service"], capture_output=True)
+
+    # Poison /etc/hosts so EDA url_check fails fast (ECONNREFUSED, not a TCP timeout)
+    try:
+        with open("/etc/hosts") as f:
+            lines = [l for l in f.read().splitlines() if gs_host not in l]
+        lines.append(f"127.0.0.1 {gs_host}")
+        with open("/etc/hosts", "w") as f:
+            f.write("\n".join(lines) + "\n")
+    except Exception as exc:
+        log.error("Could not modify /etc/hosts: %s", exc)
+        return jsonify({"error": f"Could not modify /etc/hosts: {exc}"}), 500
+
+    log.info("DDIL simulation active — Skupper stopped, %s → 127.0.0.1", gs_host)
+    return jsonify({"status": "ddil_active", "blocked_host": gs_host})
 
 
 @app.post("/orbit/reset")
