@@ -6,9 +6,17 @@
 # Press Ctrl+C when ready to run demo-restore.yml.
 set -euo pipefail
 
-echo "  Waiting for satellite VM to come up (playbook handles virsh start)..."
+# Start VM if shut off — happens when KVM treats guest reboot as shutdown
+STATE=$(virsh --connect qemu:///system domstate satellite-sim 2>/dev/null | tr -d ' ')
+if [ "$STATE" = "shutoff" ]; then
+  echo "  VM is shut off — starting it..."
+  virsh --connect qemu:///system start satellite-sim 2>/dev/null || true
+else
+  echo "  Waiting for satellite VM to come up..."
+fi
+
 VM_IP=""
-for i in $(seq 1 24); do
+for i in $(seq 1 36); do
   VM_IP=$(virsh --connect qemu:///system domifaddr satellite-sim 2>/dev/null \
     | awk '/ipv4/ {print $4}' | cut -d/ -f1)
   [ -n "$VM_IP" ] && break
