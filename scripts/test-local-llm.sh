@@ -38,27 +38,17 @@ import json, sys, urllib.request, urllib.error
 model, url, confidence, lat, lon, alt_km, timestamp = sys.argv[1:]
 
 prompt = (
-    "You are an autonomous satellite threat assessment system.\n"
-    "Sensor: thermal IR multi-spectral imager aboard a LEO reconnaissance satellite.\n"
-    "The sensor detected a high-intensity point-source emitter — a tight thermal signature "
-    "significantly above background, consistent with an active radar, directed-energy weapon, "
-    "rocket plume, or industrial thermal anomaly.\n"
-    "Area of interest: Persian Gulf / Arabian Peninsula corridor (18-32N, 42-75E).\n\n"
-    "Classify this detection using confidence as the primary discriminator:\n"
-    "- confidence >= 0.90  -> DIRECTED_ENERGY  (very high SNR, tight emitter cluster, active weapon/system signature)\n"
-    "- confidence 0.80-0.89 -> RF_EMITTER      (strong coherent signal, likely active radar or jammer)\n"
-    "- confidence 0.75-0.79 -> THERMAL_PLUME   (elevated thermal signature, probable propulsion or industrial)\n"
-    "- confidence < 0.75   -> THERMAL_ANOMALY  (moderate contrast, ambiguous source, warrants monitoring)\n\n"
-    'The "classification" value MUST be one of these exact strings:\n'
-    "DIRECTED_ENERGY, RF_EMITTER, THERMAL_PLUME, THERMAL_ANOMALY, ORBITAL_DEBRIS, UNKNOWN_EMITTER\n\n"
-    "You MUST return all three fields: classification, confidence, and summary.\n"
-    "Respond with ONLY a JSON object. Example:\n"
-    '{"classification": "RF_EMITTER", "confidence": 0.85, "summary": "Strong coherent RF signature at low altitude consistent with surface-based radar system."}\n\n'
-    "Detection:\n"
-    f"- Sensor confidence: {confidence}\n"
-    f"- Location: {lat}N, {lon}E\n"
-    f"- Altitude: {alt_km} km\n"
-    f"- Timestamp: {timestamp}"
+    "Classify a satellite thermal IR detection. Return ONLY valid JSON with EXACTLY these 3 fields: "
+    "classification, confidence, summary. No other fields.\n\n"
+    "Classification rules (pick ONE based on confidence):\n"
+    "- confidence >= 0.90  -> DIRECTED_ENERGY\n"
+    "- confidence 0.80-0.89 -> RF_EMITTER\n"
+    "- confidence 0.75-0.79 -> THERMAL_PLUME\n"
+    "- confidence < 0.75   -> THERMAL_ANOMALY\n\n"
+    "Valid classifications: DIRECTED_ENERGY, RF_EMITTER, THERMAL_PLUME, THERMAL_ANOMALY, ORBITAL_DEBRIS, UNKNOWN_EMITTER\n\n"
+    'Example (copy this format exactly, 3 fields only):\n'
+    '{"classification": "RF_EMITTER", "confidence": 0.85, "summary": "Coherent RF signature consistent with active radar."}\n\n'
+    f"Detection: confidence={confidence}, location={lat}N {lon}E, altitude={alt_km}km"
 )
 
 payload = json.dumps({
@@ -66,7 +56,7 @@ payload = json.dumps({
     "prompt": prompt,
     "stream": False,
     "format": "json",
-    "options": {"num_predict": 80},
+    "options": {"num_predict": 150},
 }).encode()
 
 try:
