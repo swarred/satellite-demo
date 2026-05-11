@@ -6,10 +6,7 @@
 # Press Ctrl+C when ready to run demo-restore.yml.
 set -euo pipefail
 
-# Start the VM if it shut off after the bootc reboot
-virsh --connect qemu:///system start satellite-sim 2>/dev/null || true
-
-echo "  Waiting for satellite VM to come up..."
+echo "  Waiting for satellite VM to come up (playbook handles virsh start)..."
 VM_IP=""
 for i in $(seq 1 24); do
   VM_IP=$(virsh --connect qemu:///system domifaddr satellite-sim 2>/dev/null \
