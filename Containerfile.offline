@@ -38,9 +38,9 @@ RUN chown -R ollama:ollama /var/lib/ollama
 COPY systemd/ollama.service /usr/lib/systemd/system/ollama.service
 
 # ── Event-Driven Ansible (reconnect detection) ────────────────────────────────
-RUN dnf -y install java-21-openjdk-headless && \
+RUN dnf -y install java-21-openjdk-headless ansible-core && \
     pip3 install --no-cache-dir ansible-rulebook ansible-runner && \
-    /usr/local/bin/ansible-galaxy collection install ansible.eda && \
+    ansible-galaxy collection install ansible.eda && \
     dnf clean all
 
 # EDA rulebook and Ansible playbook for reconnect → online switch

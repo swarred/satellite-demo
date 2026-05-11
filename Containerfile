@@ -49,9 +49,9 @@ COPY systemd/skupper-init.service  /usr/lib/systemd/system/skupper-init.service
 # ── Event-Driven Ansible (DDIL detection) ────────────────────────────────────
 # ansible-rulebook watches the ground station health endpoint; on connectivity
 # loss it stages the offline image and reboots into autonomous DDIL mode.
-RUN dnf -y install java-21-openjdk-headless && \
+RUN dnf -y install java-21-openjdk-headless ansible-core && \
     pip3 install --no-cache-dir ansible-rulebook ansible-runner && \
-    /usr/local/bin/ansible-galaxy collection install ansible.eda && \
+    ansible-galaxy collection install ansible.eda && \
     dnf clean all
 
 ARG GROUND_STATION_URL=https://ground-station-satellite-ground.apps.example.com
