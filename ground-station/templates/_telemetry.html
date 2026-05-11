@@ -1,0 +1,81 @@
+<style>
+  .telem-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 7px;
+    font-family: var(--mono);
+    font-size: 11px;
+    gap: 8px;
+  }
+  .telem-lbl { color: var(--dim); white-space: nowrap; }
+  .telem-val { color: var(--text); text-align: right; }
+  .telem-val.hot    { color: var(--red); }
+  .telem-val.active { color: var(--green); }
+  .telem-val.dim    { color: var(--dim); }
+
+  .scan-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    display: inline-block;
+    margin-top: 4px;
+  }
+  .scan-active  { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-dim); }
+  .scan-idle    { background: #1a1a1a; color: var(--dim); border: 1px solid var(--border); }
+  .scan-offline { background: #1a1a1a; color: var(--dim); border: 1px solid var(--border); }
+</style>
+
+<div class="section-label">ORBITAL POSITION</div>
+
+{% if telemetry %}
+  <div class="telem-row">
+    <span class="telem-lbl">LAT</span>
+    <span class="telem-val">{{ "%.4f"|format(telemetry.lat) }}°{{ 'N' if telemetry.lat >= 0 else 'S' }}</span>
+  </div>
+  <div class="telem-row">
+    <span class="telem-lbl">LON</span>
+    <span class="telem-val">{{ "%.4f"|format(telemetry.lon|abs) }}°{{ 'E' if telemetry.lon >= 0 else 'W' }}</span>
+  </div>
+  <div class="telem-row">
+    <span class="telem-lbl">ALT</span>
+    <span class="telem-val">{{ "%.1f"|format(telemetry.alt_km) }} km</span>
+  </div>
+  <div class="telem-row">
+    <span class="telem-lbl">VEL</span>
+    <span class="telem-val">{{ "%.2f"|format(telemetry.velocity_kms) }} km/s</span>
+  </div>
+
+  <div style="margin-top: 12px;">
+    {% if telemetry.over_target %}
+      <span class="scan-badge scan-active">● SCANNING AOI</span>
+    {% else %}
+      <span class="scan-badge scan-idle">○ TRANSIT</span>
+    {% endif %}
+  </div>
+
+  {% if telemetry.target_area %}
+  <div style="margin-top: 20px;">
+    <div class="section-label">AOI BOUNDS</div>
+    <div class="telem-row">
+      <span class="telem-lbl">LAT</span>
+      <span class="telem-val dim">
+        {{ "%.1f"|format(telemetry.target_area.lat_min) }}–{{ "%.1f"|format(telemetry.target_area.lat_max) }}°
+      </span>
+    </div>
+    <div class="telem-row">
+      <span class="telem-lbl">LON</span>
+      <span class="telem-val dim">
+        {{ "%.1f"|format(telemetry.target_area.lon_min) }}–{{ "%.1f"|format(telemetry.target_area.lon_max) }}°
+      </span>
+    </div>
+  </div>
+  {% endif %}
+
+{% else %}
+  <div class="telem-row">
+    <span class="telem-lbl">SIGNAL</span>
+    <span class="telem-val hot">LOST</span>
+  </div>
+  <span class="scan-badge scan-offline">○ NO LINK</span>
+{% endif %}

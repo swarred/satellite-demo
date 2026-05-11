@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GROUND STATION // SATELLITE-GROUND</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
+  <style>
+    :root {
+      --bg:         #151515;
+      --bg-panel:   #111111;
+      --bg-card:    #1c1c1c;
+      --border:     #2a2a2a;
+      --red:        #EE0000;   /* reserved: link-lost only */
+      --red-dim:    #7a0000;
+      --red-bg:     #1a0000;
+      --amber:      #c8890a;   /* alert state — attention, not emergency */
+      --amber-dim:  #7a5200;
+      --amber-bg:   #1a1100;
+      --blue:       #4a9eff;   /* analyze action */
+      --blue-dim:   #1a3a6a;
+      --blue-bg:    #00101e;
+      --green:      #6dbf6d;
+      --green-bg:   #0d1a0d;
+      --green-dim:  #2a4a2a;
+      --text:       #d0d0d0;
+      --dim:        #666666;
+      --mono:       'Courier New', 'Lucida Console', monospace;
+      --sans:       'Red Hat Text', 'Liberation Sans', Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────────── */
+
+    header {
+      background: #0d0d0d;
+      border-bottom: 2px solid #2d5a2d;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .callsign {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--green);
+      letter-spacing: 3px;
+    }
+
+    .header-right {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .link-status {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+
+    .link-status::before { content: '● '; }
+    .link-online  { color: var(--green); }
+    .link-offline { color: var(--red); }
+
+    .utc-clock {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--dim);
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────────────── */
+
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Telemetry sidebar ──────────────────────────────────────────────────── */
+
+    .sidebar {
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .orbit-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .orbit-section .classified-banner {
+      margin-top: auto;
+      padding-top: 16px;
+    }
+
+    /* ── Orbit map ──────────────────────────────────────────────────────────── */
+
+    #orbit-map {
+      display: block;
+      width: 100%;
+      height: 120px;
+      border: 1px solid var(--border);
+      background: #0d0d0d;
+    }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--dim);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+    }
+
+    /* ── Alerts feed ────────────────────────────────────────────────────────── */
+
+    .feed {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .feed-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .feed-title {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--dim);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .alert-count {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--red);
+    }
+
+    #alerts-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+    }
+
+    /* ── Operator strip ─────────────────────────────────────────────────────── */
+
+    .operator-strip {
+      background: #0d0d0d;
+      border-top: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .strip-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--dim);
+      letter-spacing: 2px;
+    }
+
+    .btn {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      padding: 5px 14px;
+      border: 1px solid;
+      cursor: pointer;
+      background: transparent;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .btn-trigger {
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+    .btn-trigger:hover { background: var(--amber-bg); }
+
+    .btn-reset {
+      border-color: var(--green-dim);
+      color: #4a7a4a;
+    }
+    .btn-reset:hover { background: var(--green-bg); color: var(--green); border-color: var(--green); }
+
+    .btn-clear {
+      border-color: #3a3a3a;
+      color: var(--dim);
+    }
+    .btn-clear:hover { background: #1a1a1a; color: #999; border-color: #555; }
+
+    /* ── Classified banner ──────────────────────────────────────────────────── */
+
+    .classified-banner {
+      margin-top: 4px;
+      padding: 10px;
+      border: 1px solid #1e3a1e;
+      background: #0a120a;
+      font-family: var(--mono);
+      font-size: 9px;
+      color: #3a5a3a;
+      line-height: 1.6;
+    }
+
+    .classified-banner .banner-header {
+      color: #5a8a5a;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="callsign">GROUND STATION // SATELLITE-GROUND</div>
+    <div class="header-right">
+      {% include '_linkstatus.html' %}
+      <span class="utc-clock" id="clock"></span>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- Telemetry sidebar -->
+    <div class="sidebar">
+      <!-- Telemetry rows — polled every 2s, swapped independently of canvas -->
+      <div id="telemetry-panel"
+           hx-get="/partials/telemetry"
+           hx-trigger="every 2s"
+           hx-swap="innerHTML">
+        {% include '_telemetry.html' %}
+      </div>
+
+      <!-- Ground track — updated by JS, not HTMX -->
+      <div class="orbit-section">
+        <div class="section-label">GROUND TRACK</div>
+        <canvas id="orbit-map"></canvas>
+        <div class="classified-banner">
+          <div class="banner-header">// TOP SECRET // NOFORN //</div>
+          This system processes classified mission data under DoD Directive
+          5200.01 and ICD 705. Access is restricted to personnel with verified
+          need-to-know and active SCI eligibility. All sessions are monitored,
+          logged, and subject to audit under 18&nbsp;U.S.C.&nbsp;§&nbsp;1030.
+          Unauthorized access or misuse may result in criminal prosecution.
+        </div>
+      </div>
+    </div>
+
+    <!-- Alerts feed -->
+    <div class="feed">
+      <div class="feed-header">
+        <span class="feed-title">THREAT DETECTION FEED</span>
+        <span class="alert-count" id="alert-count">{{ alerts|length }} ALERT{{ 's' if alerts|length != 1 else '' }}</span>
+      </div>
+      <div id="alerts-container"
+           hx-get="/partials/alerts"
+           hx-trigger="every 5s"
+           hx-swap="innerHTML">
+        {% include '_alerts.html' %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Operator controls -->
+  <div class="operator-strip">
+    <span class="strip-label">OPERATOR CONTROLS</span>
+    <button class="btn btn-trigger"
+            hx-post="/demo/trigger"
+            hx-target="#alerts-container"
+            hx-swap="innerHTML">
+      TRIGGER DETECTION
+    </button>
+    <button class="btn btn-reset"
+            hx-post="/demo/reset-orbit"
+            hx-swap="none"
+            onclick="orbitTrail = []; drawOrbitMap({});">
+      RESET APPROACH
+    </button>
+    <button class="btn btn-clear"
+            hx-post="/demo/clear-alerts"
+            hx-target="#alerts-container"
+            hx-swap="innerHTML">
+      CLEAR ALERTS
+    </button>
+  </div>
+
+  <script>
+    function updateClock() {
+      const now = new Date();
+      const hh = String(now.getUTCHours()).padStart(2, '0');
+      const mm = String(now.getUTCMinutes()).padStart(2, '0');
+      const ss = String(now.getUTCSeconds()).padStart(2, '0');
+      document.getElementById('clock').textContent = `${hh}:${mm}:${ss}Z`;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+  </script>
+
+  <script>
+    // Regional map bounds — shows AOI approach corridor
+    const M_LAT_MIN = -10, M_LAT_MAX = 60;
+    const M_LON_MIN = 0,   M_LON_MAX = 120;
+
+    const TRAIL_MAX = 40;   // ~80 seconds of history at 2s poll
+    let orbitTrail = [];
+
+    const canvas = document.getElementById('orbit-map');
+    const dpr = window.devicePixelRatio || 1;
+    // Size canvas to CSS pixel width of its container
+    function resizeCanvas() {
+      const cssW = canvas.parentElement.clientWidth;
+      const cssH = 120;
+      canvas.width  = cssW * dpr;
+      canvas.height = cssH * dpr;
+      canvas.style.width  = cssW + 'px';
+      canvas.style.height = cssH + 'px';
+    }
+    resizeCanvas();
+
+    function lonToX(lon) {
+      return (lon - M_LON_MIN) / (M_LON_MAX - M_LON_MIN) * (canvas.width / dpr);
+    }
+    function latToY(lat) {
+      return (1 - (lat - M_LAT_MIN) / (M_LAT_MAX - M_LAT_MIN)) * (canvas.height / dpr);
+    }
+
+    function drawOrbitMap(data) {
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      const w = canvas.width  / dpr;
+      const h = canvas.height / dpr;
+
+      // Background
+      ctx.fillStyle = '#0d0d0d';
+      ctx.fillRect(0, 0, w, h);
+
+      // Lat/lon grid every 15°
+      ctx.strokeStyle = '#1e1e1e';
+      ctx.lineWidth = 0.5;
+      for (let lat = M_LAT_MIN; lat <= M_LAT_MAX; lat += 15) {
+        const y = latToY(lat);
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+      for (let lon = M_LON_MIN; lon <= M_LON_MAX; lon += 15) {
+        const x = lonToX(lon);
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      }
+
+      // Equator — slightly brighter reference line
+      ctx.strokeStyle = '#2a2a2a';
+      ctx.lineWidth = 0.75;
+      ctx.beginPath(); ctx.moveTo(0, latToY(0)); ctx.lineTo(w, latToY(0)); ctx.stroke();
+
+      // AOI box
+      if (data.target_area) {
+        const ta = data.target_area;
+        const x1 = lonToX(ta.lon_min), x2 = lonToX(ta.lon_max);
+        const y1 = latToY(ta.lat_max), y2 = latToY(ta.lat_min);
+        ctx.fillStyle = 'rgba(200, 137, 10, 0.10)';
+        ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+        ctx.strokeStyle = '#c8890a';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        ctx.setLineDash([]);
+        // AOI label
+        ctx.fillStyle = 'rgba(200, 137, 10, 0.5)';
+        ctx.font = '7px monospace';
+        ctx.fillText('AOI', x1 + 3, y1 + 8);
+      }
+
+      // Fading trail
+      ctx.save();
+      ctx.rect(0, 0, w, h);
+      ctx.clip();
+      for (let i = 0; i < orbitTrail.length; i++) {
+        const pt = orbitTrail[i];
+        const alpha = ((i + 1) / orbitTrail.length) * 0.55;
+        ctx.fillStyle = `rgba(74, 158, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(lonToX(pt.lon), latToY(pt.lat), 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Current position
+      if (data.lat != null && data.lon != null) {
+        const cx = lonToX(data.lon);
+        const cy = latToY(data.lat);
+        const onTarget = data.over_target;
+        const dotColor  = onTarget ? '#c8890a' : '#4a9eff';
+        const glowColor = onTarget ? 'rgba(200,137,10,0.35)' : 'rgba(74,158,255,0.25)';
+
+        // Glow ring
+        ctx.strokeStyle = glowColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.stroke();
+
+        // Dot
+        ctx.fillStyle = dotColor;
+        ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    function pollOrbit() {
+      fetch('/api/telemetry')
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => {
+          if (data.lat != null) {
+            orbitTrail.push({ lat: data.lat, lon: data.lon });
+            if (orbitTrail.length > TRAIL_MAX) orbitTrail.shift();
+          }
+          drawOrbitMap(data);
+        })
+        .catch(() => {});
+    }
+
+    pollOrbit();
+    setInterval(pollOrbit, 2000);
+  </script>
+
+</body>
+</html>

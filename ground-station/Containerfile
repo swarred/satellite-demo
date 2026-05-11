@@ -1,0 +1,16 @@
+# Stage 1 — install dependencies with matching Python version
+# Uses python:3.14-slim so compiled extensions (e.g. MarkupSafe) match the
+# ABI expected by the hardened image, which also runs Python 3.14.
+FROM python:3.14-slim AS builder
+COPY requirements.txt /tmp/
+RUN pip install --no-cache-dir --target=/deps -r /tmp/requirements.txt
+
+# Stage 2 — Red Hat Hardened Image (no shell, runs as UID 65532)
+FROM registry.access.redhat.com/hi/python:latest
+COPY --from=builder /deps /app/deps
+COPY app.py /app/app.py
+COPY templates/ /app/templates/
+ENV PYTHONPATH=/app/deps
+WORKDIR /app
+EXPOSE 8080
+CMD ["python3", "app.py"]

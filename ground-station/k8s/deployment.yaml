@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ground-station
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ground-station
+  template:
+    metadata:
+      labels:
+        app: ground-station
+    spec:
+      containers:
+        - name: ground-station
+          image: image-registry.openshift-image-registry.svc:5000/satellite-ground/ground-station:latest
+          imagePullPolicy: Always
+          # Image built via: oc start-build ground-station --from-dir=. --follow
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SATELLITE_URL
+              value: "http://satellite-alerts:8080"
+            - name: MAAS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: maas-credentials
+                  key: url
+            - name: MAAS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: maas-credentials
+                  key: key
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15

@@ -1,0 +1,23 @@
+[Unit]
+Description=Satellite Mission Simulation Service
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -m satellite_sim.main
+Environment=PYTHONPATH=/opt/satellite-sim
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Harden the service — satellite sim has no need for most privileges
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+StateDirectory=satellite-sim
+
+[Install]
+WantedBy=multi-user.target

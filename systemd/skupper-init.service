@@ -1,0 +1,29 @@
+[Unit]
+Description=Skupper site initialisation — link to OCP ground station
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/skupper/token.yaml
+ConditionPathExists=!/var/lib/skupper/.linked
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+
+ExecStart=/bin/bash -c '\
+  set -euo pipefail; \
+  NS=satellite-vm; \
+  PLATFORM=linux; \
+  /usr/local/bin/skupper system apply -p $PLATFORM -n $NS -f /etc/skupper/site.yaml && \
+  /usr/local/bin/skupper system start -p $PLATFORM -n $NS 2>&1 || true && \
+  /usr/bin/sleep 5 && \
+  /usr/local/bin/skupper token redeem /etc/skupper/token.yaml -p $PLATFORM -n $NS && \
+  /usr/local/bin/skupper system apply -p $PLATFORM -n $NS -f /etc/skupper/connector.yaml && \
+  /usr/local/bin/skupper system reload -p $PLATFORM -n $NS && \
+  touch /var/lib/skupper/.linked'
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

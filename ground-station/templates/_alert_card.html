@@ -1,0 +1,256 @@
+<style>
+  .alert-card {
+    background: var(--bg-card);
+    border-left: 3px solid var(--amber);
+    margin-bottom: 10px;
+    padding: 12px 14px;
+  }
+  .alert-card.classified { border-left-color: var(--green); }
+  .alert-card.routed {
+    border-left-color: #3a3a3a;
+    opacity: 0.55;
+  }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 6px;
+  }
+  .card-class {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--amber);
+    letter-spacing: 1px;
+    font-weight: bold;
+  }
+  .card-class.resolved { color: var(--green); }
+  .alert-card.routed .card-class { color: var(--dim); }
+
+  .card-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    text-align: right;
+  }
+
+  .card-coords {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .conf-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .conf-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    white-space: nowrap;
+  }
+  .conf-bar-bg {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+  }
+  .conf-bar-fill {
+    height: 100%;
+    background: var(--amber);
+  }
+  .conf-pct {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--amber);
+    white-space: nowrap;
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    display: inline-block;
+  }
+  .badge-pending { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-dim); }
+  .badge-routed  { background: #1a1a1a;       color: var(--dim); border: 1px solid var(--border); }
+
+  .btn-ack {
+    border-color: var(--border);
+    color: var(--dim);
+  }
+  .btn-ack:hover { background: var(--border); color: var(--text); }
+
+  .btn-analyze {
+    border-color: var(--blue-dim);
+    color: var(--blue);
+  }
+  .btn-analyze:hover { background: var(--blue-bg); }
+
+  .demo-tag {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 1px;
+  }
+
+  .imagery-chip {
+    margin-bottom: 10px;
+    background: #000;
+    display: inline-block;
+    border: 1px solid #2a2a2a;
+    line-height: 0;
+    cursor: zoom-in;
+  }
+  .imagery-chip img {
+    width: 192px;
+    height: auto;
+    display: block;
+    image-rendering: pixelated;
+  }
+  .imagery-chip.loading img { opacity: 0.4; }
+
+  /* Lightbox */
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox img {
+    max-width: 90vw;
+    max-height: 90vh;
+    image-rendering: pixelated;
+    border: 1px solid #444;
+  }
+
+  .assessment {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--green-bg);
+    border: 1px solid var(--green-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.65;
+    color: #a8d8a8;
+  }
+  .assessment-header {
+    color: var(--green);
+    letter-spacing: 1px;
+    font-weight: bold;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .assessment-footer {
+    margin-top: 8px;
+    color: #4a7a4a;
+    font-size: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .btn-dismiss {
+    border-color: var(--border);
+    color: #4a7a4a;
+    font-size: 9px;
+    padding: 2px 7px;
+    letter-spacing: 1px;
+  }
+  .btn-dismiss:hover { background: var(--border); color: var(--dim); }
+</style>
+
+{% set routed = alert.get('routed', False) %}
+{% set classified = alert.get('classification', 'UNKNOWN_EMITTER') != 'UNKNOWN_EMITTER' %}
+<div class="alert-card{{ ' routed' if routed else (' classified' if classified else '') }}" id="card-{{ alert.alert_id }}">
+
+  <div class="card-top">
+    <div>
+      <div class="card-class" id="card-class-{{ alert.alert_id }}">{{ alert.get('classification', 'UNKNOWN') }}</div>
+    </div>
+    <div class="card-meta">
+      <div>#{{ alert.alert_id }}</div>
+      <div>{{ alert.timestamp[:19].replace('T', ' ') }}Z</div>
+    </div>
+  </div>
+
+  <div class="imagery-chip" id="chip-{{ alert.alert_id }}"
+       onclick="document.getElementById('lb-{{ alert.alert_id }}').classList.add('open')">
+    <img src="/frames/{{ alert.alert_id }}"
+         alt="IR frame {{ alert.alert_id }}"
+         onerror="this.closest('.imagery-chip').style.display='none'">
+  </div>
+
+  <div class="lightbox" id="lb-{{ alert.alert_id }}"
+       onclick="this.classList.remove('open')">
+    <img src="/frames/{{ alert.alert_id }}" alt="IR frame {{ alert.alert_id }}">
+  </div>
+
+  <div class="card-coords">
+    {{ "%.4f"|format(alert.lat|abs) }}°{{ 'N' if alert.lat >= 0 else 'S' }}&nbsp;&nbsp;
+    {{ "%.4f"|format(alert.lon|abs) }}°{{ 'E' if alert.lon >= 0 else 'W' }}&nbsp;&nbsp;
+    {{ "%.0f"|format(alert.alt_km) }} km
+  </div>
+
+  <div class="conf-row">
+    <span class="conf-label">CONFIDENCE</span>
+    <div class="conf-bar-bg">
+      <div class="conf-bar-fill" style="width: {{ (alert.confidence * 100)|int }}%"></div>
+    </div>
+    <span class="conf-pct">{{ (alert.confidence * 100)|int }}%</span>
+  </div>
+
+  <div class="card-actions">
+    {% if routed %}
+      <span class="badge badge-routed">ROUTED</span>
+    {% else %}
+      <span class="badge badge-pending">PENDING</span>
+      <button class="btn btn-ack"
+              hx-post="/alerts/{{ alert.alert_id }}/ack"
+              hx-target="#card-{{ alert.alert_id }}"
+              hx-swap="outerHTML">
+        ACK
+      </button>
+    {% endif %}
+    <button class="btn btn-analyze"
+            hx-post="/alerts/{{ alert.alert_id }}/analyze"
+            hx-target="#card-{{ alert.alert_id }}"
+            hx-swap="outerHTML">
+      ANALYZE
+    </button>
+    {% if alert.get('demo_triggered') %}
+      <span class="demo-tag">[DEMO TRIGGER]</span>
+    {% endif %}
+  </div>
+
+  {% set stored = alert.get('assessment') %}
+  {% if stored %}
+  <div class="assessment" id="assessment-{{ alert.alert_id }}">
+    <span class="assessment-header">COMMANDER'S ASSESSMENT</span>
+    {{ stored.text }}
+    <div class="assessment-footer">
+      <span>Model: {{ stored.model }} &nbsp;|&nbsp; Source: {{ stored.source }} &nbsp;|&nbsp; Latency: {{ stored.latency }}</span>
+      <button class="btn btn-dismiss"
+              hx-post="/alerts/{{ alert.alert_id }}/dismiss"
+              hx-target="#card-{{ alert.alert_id }}"
+              hx-swap="outerHTML">
+        DISMISS
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+</div>

@@ -1,0 +1,12 @@
+<span class="link-status {{ 'link-online' if link.up else 'link-offline' }}"
+      hx-get="/partials/linkstatus"
+      hx-trigger="every 3s"
+      hx-swap="outerHTML">
+  {% if link.up %}
+    RHSI LINK ACTIVE
+  {% elif link.elapsed is not none %}
+    LINK LOST &nbsp;·&nbsp; {{ link.elapsed }}s ago
+  {% else %}
+    LINK LOST
+  {% endif %}
+</span>

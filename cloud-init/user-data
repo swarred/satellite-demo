@@ -1,0 +1,29 @@
+#cloud-config
+# Satellite demo VM — cloud-init user-data
+#
+# This file is a TEMPLATE — do not put real credentials here.
+# The satellite-demo-automation playbook generates this file dynamically
+# at deploy time by fetching a fresh AccessGrant from the OCP cluster.
+#
+# For manual deploys: replace the placeholder values below with real values
+# from: oc get accessgrant/satellite-vm-token -n satellite-ground -o yaml
+#
+# To use a different cluster: run the Ansible playbook or regenerate the
+# AccessGrant on OCP and update spec.url, spec.code, and spec.ca below.
+
+ssh_pwauth: true
+
+write_files:
+  - path: /etc/skupper/token.yaml
+    permissions: '0600'
+    owner: root:root
+    content: |
+      apiVersion: skupper.io/v2alpha1
+      kind: AccessToken
+      metadata:
+        name: ground-station-link
+      spec:
+        url: REPLACE_WITH_SKUPPER_GRANT_URL
+        code: REPLACE_WITH_SKUPPER_GRANT_CODE
+        ca: |
+          REPLACE_WITH_SKUPPER_GRANT_CA_CERT

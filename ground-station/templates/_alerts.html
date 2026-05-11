@@ -1,0 +1,12 @@
+<span id="alert-count" hx-swap-oob="true" class="alert-count">
+  {{- alerts|length }} ALERT{{ 's' if alerts|length != 1 else '' -}}
+</span>
+{% if alerts %}
+  {% for alert in alerts %}
+    {% include '_alert_card.html' %}
+  {% endfor %}
+{% else %}
+  <div style="font-family: var(--mono); font-size: 11px; color: var(--dim); padding: 20px 0;">
+    NO DETECTIONS — SYSTEM NOMINAL
+  </div>
+{% endif %}

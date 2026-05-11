@@ -1,0 +1,12 @@
+# Build outputs — never commit disk images or archives
+output/
+*.qcow2
+*.tar
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Developer session notes — environment-specific, not user-facing docs
+BUILD-LOG.md
