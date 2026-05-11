@@ -30,17 +30,21 @@ VALID_CLASSIFICATIONS = {
 }
 
 PROMPT_TEMPLATE = (
-    "You are an autonomous satellite threat assessment system operating without ground station connectivity.\n"
-    "Analyze this sensor detection and return ONLY a valid JSON object — no explanation, no markdown.\n\n"
-    "Detection:\n"
+    'Classify a satellite sensor detection. Respond with ONLY a JSON object, no other text.\n\n'
+    'The "classification" value MUST be copied VERBATIM from this list — no other values are valid:\n'
+    "1. DIRECTED_ENERGY\n"
+    "2. RF_EMITTER\n"
+    "3. THERMAL_PLUME\n"
+    "4. THERMAL_ANOMALY\n"
+    "5. ORBITAL_DEBRIS\n"
+    "6. UNKNOWN_EMITTER\n\n"
+    "Example of correct output:\n"
+    '{{"classification": "RF_EMITTER", "confidence": 0.85, "summary": "Strong radio frequency signature consistent with active radar."}}\n\n'
+    "Detection to classify:\n"
     "- Sensor confidence: {confidence}\n"
     "- Location: {lat:.4f}°N, {lon:.4f}°E\n"
     "- Altitude: {alt_km:.1f} km\n"
-    "- Timestamp: {timestamp}\n\n"
-    "Valid classifications: DIRECTED_ENERGY, RF_EMITTER, THERMAL_PLUME, "
-    "THERMAL_ANOMALY, ORBITAL_DEBRIS, UNKNOWN_EMITTER\n\n"
-    'Required JSON: {{"classification": "<valid classification>", '
-    '"confidence": <0.0-1.0>, "summary": "<one sentence>"}}'
+    "- Timestamp: {timestamp}"
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
