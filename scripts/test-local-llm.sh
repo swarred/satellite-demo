@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-local-llm.sh — Validate that phi4-mini produces usable classification output
+# test-local-llm.sh — Validate that llama3.2:1b produces usable classification output
 # Uses the Ollama HTTP API directly (same path as local_analysis.py) with
 # format=json enforced, so output matches exactly what the service will produce.
 set -euo pipefail
@@ -102,7 +102,7 @@ PYEOF
 # ── Test cases ────────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════════"
-echo "  phi4-mini classification validation — 3 test detections"
+echo "  llama3.2:1b classification validation — 3 test detections"
 echo "  (uses Ollama API with format=json, same as the service)"
 echo "═══════════════════════════════════════════════════════════"
 echo ""

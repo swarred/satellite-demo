@@ -2,7 +2,7 @@
 # demo-watch-offline.sh — Live view of satellite autonomous offline operations.
 #
 # Run in a second terminal after demo-ddil.yml completes. Streams real-time
-# alert classifications from phi4-mini directly from the satellite VM journal.
+# alert classifications from llama3.2:1b directly from the satellite VM journal.
 # Press Ctrl+C when ready to run demo-restore.yml.
 set -euo pipefail
 
@@ -38,7 +38,7 @@ echo "  ╔═══════════════════════
 echo "  ║   SATELLITE SIM — AUTONOMOUS OFFLINE OPERATIONS       ║"
 echo "  ║   Ground station uplink: SEVERED                      ║"
 echo "  ║   Operating mode:        DDIL AUTONOMOUS              ║"
-echo "  ║   Classification engine: phi4-mini (local LLM)        ║"
+echo "  ║   Classification engine: llama3.2:1b (local LLM)      ║"
 printf "  ║   Alerts queued so far:  %-30s║\n" "$QUEUED"
 echo "  ║                                                       ║"
 echo "  ║   Streaming live classifications — Ctrl+C to stop     ║"
