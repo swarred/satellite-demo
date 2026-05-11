@@ -94,7 +94,7 @@ def _classify(alert: dict) -> dict:
         resp = requests.post(
             OLLAMA_URL,
             json={"model": MODEL, "prompt": prompt, "stream": False, "format": "json"},
-            timeout=60,
+            timeout=300,
         )
         resp.raise_for_status()
         result = json.loads(resp.json().get("response", "{}"))
