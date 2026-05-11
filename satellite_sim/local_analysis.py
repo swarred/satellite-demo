@@ -43,6 +43,7 @@ PROMPT_TEMPLATE = (
     "- confidence < 0.75   -> THERMAL_ANOMALY  (moderate contrast, ambiguous source, warrants monitoring)\n\n"
     'The "classification" value MUST be one of these exact strings:\n'
     "DIRECTED_ENERGY, RF_EMITTER, THERMAL_PLUME, THERMAL_ANOMALY, ORBITAL_DEBRIS, UNKNOWN_EMITTER\n\n"
+    "You MUST return all three fields: classification, confidence, and summary.\n"
     "Respond with ONLY a JSON object. Example:\n"
     '{{"classification": "RF_EMITTER", "confidence": 0.85, "summary": "Strong coherent RF signature at low altitude consistent with surface-based radar system."}}\n\n'
     "Detection:\n"
@@ -77,6 +78,18 @@ def _classify(alert: dict) -> dict:
         alt_km=alert.get("alt_km", 0.0),
         timestamp=alert.get("timestamp", ""),
     )
+    # Base entry preserves all original alert fields so the online image can
+    # reconstruct the full alert (lat, lon, timestamp, etc.) from the queue alone.
+    base = {
+        "alert_id": alert["alert_id"],
+        "timestamp": alert.get("timestamp", ""),
+        "lat": alert.get("lat", 0.0),
+        "lon": alert.get("lon", 0.0),
+        "alt_km": alert.get("alt_km", 0.0),
+        "frame_id": alert.get("frame_id", -1),
+        "offline": True,
+        "model": MODEL,
+    }
     try:
         resp = requests.post(
             OLLAMA_URL,
@@ -89,24 +102,20 @@ def _classify(alert: dict) -> dict:
         if classification not in VALID_CLASSIFICATIONS:
             classification = "UNKNOWN_EMITTER"
         return {
-            "alert_id": alert["alert_id"],
+            **base,
             "classification": classification,
             "confidence": float(result.get("confidence", alert.get("confidence", 0.0))),
             "summary": result.get("summary", "Analyzed autonomously during DDIL."),
             "source": "local_llm",
-            "model": MODEL,
-            "offline": True,
         }
     except Exception as exc:
         log.error("Ollama classification failed for %s: %s", alert.get("alert_id"), exc)
         return {
-            "alert_id": alert["alert_id"],
+            **base,
             "classification": alert.get("classification", "UNKNOWN_EMITTER"),
             "confidence": float(alert.get("confidence", 0.0)),
-            "summary": f"Offline analysis error — stored for ground station review.",
+            "summary": "Offline analysis error — stored for ground station review.",
             "source": "local_llm_error",
-            "model": MODEL,
-            "offline": True,
         }
 
 

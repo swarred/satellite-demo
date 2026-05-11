@@ -51,6 +51,7 @@ prompt = (
     "- confidence < 0.75   -> THERMAL_ANOMALY  (moderate contrast, ambiguous source, warrants monitoring)\n\n"
     'The "classification" value MUST be one of these exact strings:\n'
     "DIRECTED_ENERGY, RF_EMITTER, THERMAL_PLUME, THERMAL_ANOMALY, ORBITAL_DEBRIS, UNKNOWN_EMITTER\n\n"
+    "You MUST return all three fields: classification, confidence, and summary.\n"
     "Respond with ONLY a JSON object. Example:\n"
     '{"classification": "RF_EMITTER", "confidence": 0.85, "summary": "Strong coherent RF signature at low altitude consistent with surface-based radar system."}\n\n'
     "Detection:\n"
