@@ -10,7 +10,7 @@
 
     - name: Stage online satellite image
       ansible.builtin.command:
-        cmd: bootc switch --target-no-signature-verification 192.168.122.1:5000/satellite-sim:online
+        cmd: bootc switch --no-signature-verification 192.168.122.1:5000/satellite-sim:online
       become: true
 
     - name: Log pre-reboot

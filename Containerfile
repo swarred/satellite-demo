@@ -51,7 +51,7 @@ COPY systemd/skupper-init.service  /usr/lib/systemd/system/skupper-init.service
 # loss it stages the offline image and reboots into autonomous DDIL mode.
 RUN dnf -y install java-21-openjdk-headless ansible-core && \
     pip3 install --no-cache-dir ansible-rulebook ansible-runner && \
-    ansible-galaxy collection install ansible.eda && \
+    ansible-galaxy collection install ansible.eda community.eda && \
     dnf clean all
 
 ARG GROUND_STATION_URL=https://ground-station-satellite-ground.apps.example.com

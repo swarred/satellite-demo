@@ -5,11 +5,10 @@
 - name: Satellite DDIL Monitor
   hosts: localhost
   sources:
-    - ansible.eda.url_check:
-        urls:
-          - "{{ ground_station_url }}/healthz"
+    - connectivity_check:
+        url: "{{ ground_station_url }}/healthz"
         delay: 20
-        verify_ssl: false
+        timeout: 5
 
   rules:
     - name: Enter autonomous offline mode on DDIL

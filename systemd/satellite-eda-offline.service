@@ -6,6 +6,7 @@ ConditionPathExists=/etc/satellite-eda/vars.yml
 
 [Service]
 Type=simple
+WorkingDirectory=/etc/satellite-eda
 ExecStart=/usr/local/bin/ansible-rulebook \
     --rulebook /etc/satellite-eda/reconnect-detect.yml \
     -i /etc/satellite-eda/inventory \
