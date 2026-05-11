@@ -25,19 +25,28 @@ RUN useradd -m -G wheel demo && \
     echo '%wheel ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/wheel-nopasswd
 
 # ── Ollama + phi4-mini (baked in for air-gap operation) ───────────────────────
-# The install script creates the ollama user/group and systemd service.
-# We pull the model during build so it's available offline at runtime.
-# Models land in /usr/share/ollama/.ollama (the ollama user's home).
-RUN curl -fsSL https://ollama.com/install.sh | sh
+# Install binary directly — skip install.sh which calls `systemctl restart`
+# unconditionally and fails in a container build environment.
+RUN curl -fsSL https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64 \
+      -o /usr/local/bin/ollama && \
+    chmod +x /usr/local/bin/ollama && \
+    useradd -r -s /bin/false -U -m -d /usr/share/ollama ollama
 
+# Pull phi4-mini during build so it is available offline at runtime.
+# Start a temporary server, wait until it responds, pull, then stop it.
 RUN mkdir -p /usr/share/ollama/.ollama && \
     HOME=/usr/share/ollama OLLAMA_HOST=127.0.0.1:11434 \
     ollama serve &>/tmp/ollama-build.log & \
     OLLAMA_PID=$! && \
-    sleep 15 && \
+    for i in $(seq 1 30); do \
+      curl -sf http://127.0.0.1:11434/api/tags &>/dev/null && break; \
+      sleep 2; \
+    done && \
     HOME=/usr/share/ollama ollama pull phi4-mini:latest && \
     kill $OLLAMA_PID 2>/dev/null || true && \
     chown -R ollama:ollama /usr/share/ollama/.ollama
+
+COPY systemd/ollama.service /usr/lib/systemd/system/ollama.service
 
 # ── Event-Driven Ansible (reconnect detection) ────────────────────────────────
 RUN dnf -y install java-21-openjdk-headless && \
