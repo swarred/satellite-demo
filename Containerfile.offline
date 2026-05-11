@@ -36,9 +36,10 @@ RUN chmod +x /usr/local/bin/ollama
 COPY systemd/ollama.sysusers /usr/lib/sysusers.d/ollama.conf
 COPY systemd/ollama.tmpfiles /usr/lib/tmpfiles.d/ollama.conf
 
-# Model files copied from the build host — already pulled by test-local-llm.sh.
-# Owned by root here; tmpfiles.d sets correct ollama:ollama ownership at boot.
-COPY build/ollama-models/ /var/lib/ollama/models/
+# Model files live in /usr/share/ — the immutable OS tree — so they are
+# deployed correctly on every bootc switch. /var/lib/ is NOT updated by
+# bootc switch (it persists from first boot), so models must NOT go there.
+COPY build/ollama-models/ /usr/share/ollama/models/
 
 COPY systemd/ollama.service /usr/lib/systemd/system/ollama.service
 
