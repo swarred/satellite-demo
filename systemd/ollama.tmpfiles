@@ -1,0 +1,4 @@
+# systemd-tmpfiles config — creates /var/lib/ollama at boot and sets ownership.
+# Works in conjunction with ollama.sysusers which creates the ollama user.
+d /var/lib/ollama      0755 ollama ollama -
+d /var/lib/ollama/models 0755 ollama ollama -

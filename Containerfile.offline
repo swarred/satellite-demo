@@ -28,12 +28,17 @@ RUN useradd -m -G wheel demo && \
 # The automation role stages the binary and model files into build/ before
 # running podman build, so no network access is needed here.
 COPY build/ollama /usr/local/bin/ollama
-RUN chmod +x /usr/local/bin/ollama && \
-    useradd -r -s /bin/false -U -m -d /var/lib/ollama ollama
+RUN chmod +x /usr/local/bin/ollama
 
-# Model files copied from the build host — already pulled by test-local-llm.sh
+# Use sysusers.d + tmpfiles.d for the ollama user and home directory.
+# useradd in a RUN layer does not reliably survive ostree's /etc three-way
+# merge on bootc switch — sysusers.d creates the user at first boot instead.
+COPY systemd/ollama.sysusers /usr/lib/sysusers.d/ollama.conf
+COPY systemd/ollama.tmpfiles /usr/lib/tmpfiles.d/ollama.conf
+
+# Model files copied from the build host — already pulled by test-local-llm.sh.
+# Owned by root here; tmpfiles.d sets correct ollama:ollama ownership at boot.
 COPY build/ollama-models/ /var/lib/ollama/models/
-RUN chown -R ollama:ollama /var/lib/ollama
 
 COPY systemd/ollama.service /usr/lib/systemd/system/ollama.service
 
