@@ -98,10 +98,35 @@ def _persist_alert(alert: dict):
     """Append a detection alert to the persistent JSONL log."""
     try:
         os.makedirs(STATE_DIR, exist_ok=True)
+        rec = {k: v for k, v in alert.items() if k != "has_frame"}
         with open(ALERTS_FILE, "a") as f:
-            f.write(json.dumps(alert) + "\n")
+            f.write(json.dumps(rec) + "\n")
     except Exception:
         log.exception("Failed to persist alert %s", alert.get("alert_id"))
+
+
+def _load_online_alerts():
+    """On startup, reload online alerts that were persisted before a bootc switch."""
+    if not os.path.exists(ALERTS_FILE):
+        return
+    try:
+        with open(ALERTS_FILE) as f:
+            entries = [json.loads(line) for line in f if line.strip()]
+        if not entries:
+            return
+        entries = entries[-MAX_ALERTS:]
+        log.info("Reloading %d online alerts from %s", len(entries), ALERTS_FILE)
+        with _lock:
+            existing_ids = {a["alert_id"] for a in _alerts}
+            for entry in reversed(entries):
+                if entry["alert_id"] in existing_ids:
+                    continue
+                entry["has_frame"] = False
+                _alerts.appendleft(entry)
+                existing_ids.add(entry["alert_id"])
+        log.info("Online alert history reloaded")
+    except Exception:
+        log.exception("Failed to load online alerts")
 
 
 # ── Simulation loop ────────────────────────────────────────────────────────────
@@ -153,6 +178,7 @@ def _sim_loop():
 
                 if detection:
                     alert_dict = asdict(detection)
+                    alert_dict["has_frame"] = True
                     _alerts.appendleft(alert_dict)
                     _frames[detection.alert_id] = imagery.frame_to_png(
                         frame, detection.frame_id,
@@ -332,6 +358,7 @@ def demo_trigger():
 
 if __name__ == "__main__":
     _load_offline_queue()
+    _load_online_alerts()
 
     sim_thread = threading.Thread(target=_sim_loop, daemon=True, name="sim-loop")
     sim_thread.start()

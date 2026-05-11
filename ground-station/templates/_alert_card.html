@@ -197,7 +197,7 @@
               background:#001a1a;display:inline-block;">
     NO IMAGERY — ANALYZED AUTONOMOUSLY IN DDIL MODE
   </div>
-  {% else %}
+  {% elif alert.get('has_frame', False) %}
   <div class="imagery-chip" id="chip-{{ alert.alert_id }}"
        onclick="document.getElementById('lb-{{ alert.alert_id }}').classList.add('open')">
     <img src="/frames/{{ alert.alert_id }}"
