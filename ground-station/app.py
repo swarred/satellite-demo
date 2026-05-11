@@ -57,6 +57,11 @@ def _telemetry():
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
 
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+
 @app.get("/")
 def index():
     alerts, telemetry = _alerts_annotated(), _telemetry()

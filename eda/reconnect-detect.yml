@@ -18,4 +18,4 @@
         group_by_attributes: []
       actions:
         - run_playbook:
-            name: /etc/satellite-eda/bootc-switch-online.yml
+            name: bootc-switch-online.yml
