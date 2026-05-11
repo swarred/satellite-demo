@@ -19,10 +19,16 @@ async def main(queue: asyncio.Queue, args: dict):
     url = args.get("url", "")
     delay = int(args.get("delay", 20))
     timeout = int(args.get("timeout", 5))
+    # Require this many consecutive failures before emitting a Failed event.
+    # Prevents a transient startup failure (skupper not yet linked) from
+    # triggering an immediate bootc switch.
+    failure_threshold = int(args.get("failure_threshold", 3))
 
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
+
+    consecutive_failures = 0
 
     while True:
         try:
@@ -32,5 +38,12 @@ async def main(queue: asyncio.Queue, args: dict):
         except Exception:
             status = "Failed"
 
-        await queue.put({"url_check": {"url": url, "status": status}})
+        if status == "OK":
+            consecutive_failures = 0
+            await queue.put({"url_check": {"url": url, "status": "OK"}})
+        else:
+            consecutive_failures += 1
+            if consecutive_failures >= failure_threshold:
+                await queue.put({"url_check": {"url": url, "status": "Failed"}})
+
         await asyncio.sleep(delay)
