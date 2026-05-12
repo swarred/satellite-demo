@@ -85,11 +85,14 @@ RUN systemctl enable satellite-sim.service \
                     cloud-init-local.service cloud-init.service \
                     cloud-config.service cloud-final.service
 
-# Mask Skupper services — they are created in /etc/ by the online image's
-# skupper-init and persist across bootc switch. Masking in /usr/lib/ takes
-# precedence over /etc/ and survives the immutable OS tree replacement.
-RUN ln -sf /dev/null /usr/lib/systemd/system/skupper-satellite-vm.service && \
-    ln -sf /dev/null /usr/lib/systemd/system/skupper-init.service
+# skupper-satellite-vm.service is written to /etc/ by skupper-init at runtime
+# on the online image and persists across bootc switch via the /etc/ three-way
+# merge. /etc/ has higher systemd precedence than /usr/lib/, so a /dev/null
+# symlink in /usr/lib/ does not override it. Instead, add a drop-in that makes
+# the service skip (not fail) when skrouterd is absent from the offline image.
+RUN mkdir -p /usr/lib/systemd/system/skupper-satellite-vm.service.d && \
+    printf '[Unit]\nConditionPathExists=/usr/sbin/skrouterd\n' \
+    > /usr/lib/systemd/system/skupper-satellite-vm.service.d/require-skupper.conf
 
 EXPOSE 8080
 
