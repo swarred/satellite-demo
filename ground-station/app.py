@@ -18,6 +18,10 @@ _last_contact: float = 0.0
 # Assessments keyed by alert_id — persists across polls so cards survive re-renders
 _assessments: dict = {}
 
+# Last successful alert fetch — served stale while satellite is unreachable so
+# offline alerts remain visible during Skupper reconnect after bootc switch
+_cached_alerts: list = []
+
 
 def _get(path, timeout=3):
     global _link_up, _last_contact
@@ -40,7 +44,11 @@ def _link_status():
 
 
 def _alerts():
-    return _get("/alerts") or []
+    global _cached_alerts
+    result = _get("/alerts")
+    if result is not None:
+        _cached_alerts = result
+    return _cached_alerts
 
 
 def _alerts_annotated():
@@ -48,7 +56,7 @@ def _alerts_annotated():
     for a in alerts:
         if a.get("alert_id") in _assessments:
             a["assessment"] = _assessments[a["alert_id"]]
-    return alerts
+    return sorted(alerts, key=lambda a: a.get("timestamp", ""), reverse=True)
 
 
 def _telemetry():

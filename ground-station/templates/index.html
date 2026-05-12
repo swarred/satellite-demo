@@ -460,7 +460,7 @@
           }
           drawOrbitMap(data);
         })
-        .catch(() => {});
+        .catch(() => { orbitTrail = []; drawOrbitMap({}); });
     }
 
     pollOrbit();
