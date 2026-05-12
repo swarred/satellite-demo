@@ -82,6 +82,12 @@ RUN systemctl enable satellite-sim.service \
                     cloud-init-local.service cloud-init.service \
                     cloud-config.service cloud-final.service
 
+# Mask Skupper services — they are created in /etc/ by the online image's
+# skupper-init and persist across bootc switch. Masking in /usr/lib/ takes
+# precedence over /etc/ and survives the immutable OS tree replacement.
+RUN ln -sf /dev/null /usr/lib/systemd/system/skupper-satellite-vm.service && \
+    ln -sf /dev/null /usr/lib/systemd/system/skupper-init.service
+
 EXPOSE 8080
 
 LABEL io.redhat.component="satellite-sim-offline" \
