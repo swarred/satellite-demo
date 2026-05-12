@@ -94,11 +94,21 @@ def _load_offline_queue():
         log.exception("Failed to load offline queue")
 
 
+def _satellite_mode() -> str:
+    try:
+        return open("/usr/lib/satellite-sim/mode").read().strip()
+    except OSError:
+        return "online"
+
+SATELLITE_MODE = _satellite_mode()
+
+
 def _persist_alert(alert: dict):
     """Append a detection alert to the persistent JSONL log."""
     try:
         os.makedirs(STATE_DIR, exist_ok=True)
         rec = {k: v for k, v in alert.items() if k != "has_frame"}
+        rec["satellite_mode"] = SATELLITE_MODE
         with open(ALERTS_FILE, "a") as f:
             f.write(json.dumps(rec) + "\n")
     except Exception:
@@ -120,6 +130,8 @@ def _load_online_alerts():
             existing_ids = {a["alert_id"] for a in _alerts}
             for entry in reversed(entries):
                 if entry["alert_id"] in existing_ids:
+                    continue
+                if entry.get("satellite_mode", "online") != "online":
                     continue
                 entry["has_frame"] = False
                 _alerts.appendleft(entry)

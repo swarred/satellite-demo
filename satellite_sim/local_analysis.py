@@ -135,6 +135,8 @@ def main():
                     aid = alert.get("alert_id")
                     if not aid or aid in analyzed:
                         continue
+                    if alert.get("satellite_mode", "offline") != "offline":
+                        continue
                     log.info("Classifying alert %s (confidence=%.3f)", aid, alert.get("confidence", 0))
                     result = _classify(alert)
                     with open(OFFLINE_QUEUE, "a") as qf:

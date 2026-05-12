@@ -65,6 +65,9 @@ COPY eda/connectivity_check.py    /etc/satellite-eda/connectivity_check.py
 # Bake the ground station URL so EDA knows what to probe (no runtime config needed)
 RUN echo "ground_station_url: \"${GROUND_STATION_URL}\"" > /etc/satellite-eda/vars.yml
 
+# Sentinel so main.py knows which image mode is running (used to tag persisted alerts)
+RUN mkdir -p /usr/lib/satellite-sim && echo online > /usr/lib/satellite-sim/mode
+
 # Allow insecure pulls from the build host's local registry over KVM bridge
 COPY containers/local-registry.conf /etc/containers/registries.conf.d/local-registry.conf
 
