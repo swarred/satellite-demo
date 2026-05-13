@@ -457,6 +457,8 @@
           if (data.lat != null) {
             orbitTrail.push({ lat: data.lat, lon: data.lon });
             if (orbitTrail.length > TRAIL_MAX) orbitTrail.shift();
+          } else {
+            orbitTrail = [];
           }
           drawOrbitMap(data);
         })
