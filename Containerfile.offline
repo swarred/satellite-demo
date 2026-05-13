@@ -1,0 +1,101 @@
+# Containerfile.offline — Satellite autonomous offline image
+#
+# Used when the satellite switches to DDIL mode via bootc switch.
+# No Skupper/RHSI — the satellite operates independently.
+# Includes Ollama + phi4-mini (baked in) for local alert classification,
+# an EDA reconnect rulebook that watches for OCP connectivity restoration,
+# and the persistent alert log that carries over from the online image.
+
+FROM registry.redhat.io/rhel10/rhel-bootc:latest
+
+# Install Python and pip dependencies
+RUN dnf -y install python3 python3-pip cloud-init && \
+    dnf clean all
+
+COPY requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir --prefix=/usr/local -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
+
+# Install application
+COPY satellite_sim/ /opt/satellite-sim/satellite_sim/
+
+# Demo user — same credentials as online image for SSH access during DDIL
+RUN useradd -m -G wheel demo && \
+    echo 'demo:satellite' | chpasswd && \
+    echo '%wheel ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/wheel-nopasswd
+
+# ── Ollama + phi4-mini (baked in for air-gap operation) ───────────────────────
+# The automation role stages the binary and model files into build/ before
+# running podman build, so no network access is needed here.
+COPY build/ollama /usr/local/bin/ollama
+RUN chmod +x /usr/local/bin/ollama
+
+# Use sysusers.d + tmpfiles.d for the ollama user and home directory.
+# useradd in a RUN layer does not reliably survive ostree's /etc three-way
+# merge on bootc switch — sysusers.d creates the user at first boot instead.
+COPY systemd/ollama.sysusers /usr/lib/sysusers.d/ollama.conf
+COPY systemd/ollama.tmpfiles /usr/lib/tmpfiles.d/ollama.conf
+
+# Model files live in /usr/share/ — the immutable OS tree — so they are
+# deployed correctly on every bootc switch. /var/lib/ is NOT updated by
+# bootc switch (it persists from first boot), so models must NOT go there.
+COPY build/ollama-models/ /usr/share/ollama/models/
+
+COPY systemd/ollama.service /usr/lib/systemd/system/ollama.service
+
+# ── Event-Driven Ansible (reconnect detection) ────────────────────────────────
+RUN dnf -y install java-21-openjdk-headless ansible-core && \
+    pip3 install --no-cache-dir ansible-rulebook ansible-runner && \
+    ansible-galaxy collection install ansible.eda community.eda && \
+    dnf clean all
+
+# EDA rulebook and Ansible playbook for reconnect → online switch
+RUN mkdir -p /etc/satellite-eda
+ARG GROUND_STATION_URL=https://ground-station-satellite-ground.apps.example.com
+
+RUN mkdir -p /etc/satellite-eda
+COPY eda/reconnect-detect.yml     /etc/satellite-eda/reconnect-detect.yml
+COPY eda/bootc-switch-online.yml  /etc/satellite-eda/bootc-switch-online.yml
+COPY eda/inventory                /etc/satellite-eda/inventory
+COPY eda/connectivity_check.py    /etc/satellite-eda/connectivity_check.py
+
+RUN echo "ground_station_url: \"${GROUND_STATION_URL}\"" > /etc/satellite-eda/vars.yml
+
+# Sentinel so main.py knows which image mode is running (used to tag persisted alerts)
+RUN mkdir -p /usr/lib/satellite-sim && echo offline > /usr/lib/satellite-sim/mode
+
+# Allow insecure pulls from the build host's local registry over KVM bridge
+COPY containers/local-registry.conf /etc/containers/registries.conf.d/local-registry.conf
+
+# ── Systemd units ─────────────────────────────────────────────────────────────
+COPY systemd/satellite-sim.service \
+     /usr/lib/systemd/system/satellite-sim.service
+COPY systemd/satellite-local-analysis.service \
+     /usr/lib/systemd/system/satellite-local-analysis.service
+COPY systemd/satellite-eda-offline.service \
+     /usr/lib/systemd/system/satellite-eda.service
+COPY systemd/satellite-llm-warmup.service \
+     /usr/lib/systemd/system/satellite-llm-warmup.service
+
+RUN systemctl enable satellite-sim.service \
+                    satellite-local-analysis.service \
+                    satellite-eda.service \
+                    ollama.service \
+                    satellite-llm-warmup.service \
+                    cloud-init-local.service cloud-init.service \
+                    cloud-config.service cloud-final.service
+
+# skupper-satellite-vm.service is written to /etc/ by skupper-init at runtime
+# on the online image and persists across bootc switch via the /etc/ three-way
+# merge. /etc/ has higher systemd precedence than /usr/lib/, so a /dev/null
+# symlink in /usr/lib/ does not override it. Instead, add a drop-in that makes
+# the service skip (not fail) when skrouterd is absent from the offline image.
+RUN mkdir -p /usr/lib/systemd/system/skupper-satellite-vm.service.d && \
+    printf '[Unit]\nConditionPathExists=/usr/sbin/skrouterd\n' \
+    > /usr/lib/systemd/system/skupper-satellite-vm.service.d/require-skupper.conf
+
+EXPOSE 8080
+
+LABEL io.redhat.component="satellite-sim-offline" \
+      io.redhat.version="0.1.1-offline" \
+      description="USSF satellite simulation — autonomous offline mode with local LLM (DDIL)"

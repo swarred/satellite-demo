@@ -13,7 +13,9 @@ Endpoints:
   GET  /healthz            liveness probe
 """
 
+import json
 import logging
+import os
 import threading
 import time
 from collections import deque
@@ -37,6 +39,11 @@ MAX_ALERTS = 200
 # Alert cooldown — don't fire again for this many seconds after a detection
 ALERT_COOLDOWN = 60
 
+# Persistent state directory (created by StateDirectory= in the systemd unit)
+STATE_DIR = "/var/lib/satellite-sim"
+ALERTS_FILE = os.path.join(STATE_DIR, "alerts.jsonl")
+OFFLINE_QUEUE = os.path.join(STATE_DIR, "offline-queue.jsonl")
+
 app = Flask(__name__)
 
 # Shared state — written by sim thread, read by Flask handlers
@@ -48,6 +55,90 @@ _frames: dict = {}   # alert_id → PNG bytes; evicted in step with _alerts
 
 # Set by /orbit/reset to trigger a SatelliteTracker reinit on next sim tick
 _orbit_reset = threading.Event()
+
+
+def _load_offline_queue():
+    """On startup, inject any alerts classified during DDIL offline mode."""
+    if not os.path.exists(OFFLINE_QUEUE):
+        return
+    try:
+        with open(OFFLINE_QUEUE) as f:
+            entries = [json.loads(line) for line in f if line.strip()]
+        if not entries:
+            return
+        log.info("Loading %d offline-classified alerts from %s", len(entries), OFFLINE_QUEUE)
+        # Reconstruct alert dicts merging offline analysis metadata
+        with _lock:
+            for entry in reversed(entries):  # reversed so newest ends up at front
+                alert = {
+                    "alert_id": entry["alert_id"],
+                    "timestamp": entry.get("timestamp", ""),
+                    "confidence": entry["confidence"],
+                    "lat": entry.get("lat", 0.0),
+                    "lon": entry.get("lon", 0.0),
+                    "alt_km": entry.get("alt_km", 0.0),
+                    "frame_id": entry.get("frame_id", -1),
+                    "classification": entry["classification"],
+                    "routed": False,
+                    "offline": True,
+                    "offline_summary": entry.get("summary", "Analyzed autonomously during DDIL."),
+                    "offline_model": entry.get("model", "phi4-mini"),
+                    "offline_source": entry.get("source", "local_llm"),
+                }
+                _alerts.appendleft(alert)
+                _status["alert_count"] += 1
+        # Archive the queue so it isn't reloaded on next restart
+        os.rename(OFFLINE_QUEUE, OFFLINE_QUEUE + ".loaded")
+        log.info("Offline queue loaded and archived — alerts will be forwarded to ground station")
+    except Exception:
+        log.exception("Failed to load offline queue")
+
+
+def _satellite_mode() -> str:
+    try:
+        return open("/usr/lib/satellite-sim/mode").read().strip()
+    except OSError:
+        return "online"
+
+SATELLITE_MODE = _satellite_mode()
+
+
+def _persist_alert(alert: dict):
+    """Append a detection alert to the persistent JSONL log."""
+    try:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        rec = {k: v for k, v in alert.items() if k != "has_frame"}
+        rec["satellite_mode"] = SATELLITE_MODE
+        with open(ALERTS_FILE, "a") as f:
+            f.write(json.dumps(rec) + "\n")
+    except Exception:
+        log.exception("Failed to persist alert %s", alert.get("alert_id"))
+
+
+def _load_online_alerts():
+    """On startup, reload online alerts that were persisted before a bootc switch."""
+    if not os.path.exists(ALERTS_FILE):
+        return
+    try:
+        with open(ALERTS_FILE) as f:
+            entries = [json.loads(line) for line in f if line.strip()]
+        if not entries:
+            return
+        entries = entries[-MAX_ALERTS:]
+        log.info("Reloading %d online alerts from %s", len(entries), ALERTS_FILE)
+        with _lock:
+            existing_ids = {a["alert_id"] for a in _alerts}
+            for entry in reversed(entries):
+                if entry["alert_id"] in existing_ids:
+                    continue
+                if entry.get("satellite_mode", "online") != "online":
+                    continue
+                entry["has_frame"] = False
+                _alerts.appendleft(entry)
+                existing_ids.add(entry["alert_id"])
+        log.info("Online alert history reloaded")
+    except Exception:
+        log.exception("Failed to load online alerts")
 
 
 # ── Simulation loop ────────────────────────────────────────────────────────────
@@ -98,7 +189,9 @@ def _sim_loop():
                 )
 
                 if detection:
-                    _alerts.appendleft(asdict(detection))
+                    alert_dict = asdict(detection)
+                    alert_dict["has_frame"] = True
+                    _alerts.appendleft(alert_dict)
                     _frames[detection.alert_id] = imagery.frame_to_png(
                         frame, detection.frame_id,
                         detection.lat, detection.lon, detection.timestamp,
@@ -112,6 +205,7 @@ def _sim_loop():
                         "THREAT DETECTED — confidence=%.3f lat=%.4f lon=%.4f",
                         detection.confidence, detection.lat, detection.lon,
                     )
+                    _persist_alert(alert_dict)
 
         except Exception:
             log.exception("Error in simulation tick")
@@ -186,6 +280,49 @@ def clear_alerts():
     return jsonify({"status": "cleared"})
 
 
+@app.post("/demo/ddil-on")
+def demo_ddil_on():
+    """Operator control: simulate DDIL by stopping Skupper and poisoning the ground station hostname.
+
+    Reads the ground_station_url from /etc/satellite-eda/vars.yml so the correct
+    hostname is blocked. The EDA rulebook detects the connectivity loss within ~60s
+    and automatically stages the offline image + reboots.
+    """
+    import subprocess
+    from urllib.parse import urlparse
+
+    gs_host = None
+    try:
+        with open("/etc/satellite-eda/vars.yml") as f:
+            for line in f:
+                if line.startswith("ground_station_url:"):
+                    url = line.split(":", 1)[1].strip().strip('"\'')
+                    gs_host = urlparse(url).hostname
+                    break
+    except Exception as exc:
+        log.error("Could not read ground_station_url from vars.yml: %s", exc)
+
+    if not gs_host:
+        return jsonify({"error": "ground_station_url not configured in /etc/satellite-eda/vars.yml"}), 500
+
+    # Stop Skupper — ground station shows LINK DOWN immediately
+    subprocess.run(["systemctl", "stop", "skupper-satellite-vm.service"], capture_output=True)
+
+    # Poison /etc/hosts so EDA url_check fails fast (ECONNREFUSED, not a TCP timeout)
+    try:
+        with open("/etc/hosts") as f:
+            lines = [l for l in f.read().splitlines() if gs_host not in l]
+        lines.append(f"127.0.0.1 {gs_host}")
+        with open("/etc/hosts", "w") as f:
+            f.write("\n".join(lines) + "\n")
+    except Exception as exc:
+        log.error("Could not modify /etc/hosts: %s", exc)
+        return jsonify({"error": f"Could not modify /etc/hosts: {exc}"}), 500
+
+    log.info("DDIL simulation active — Skupper stopped, %s → 127.0.0.1", gs_host)
+    return jsonify({"status": "ddil_active", "blocked_host": gs_host})
+
+
 @app.post("/orbit/reset")
 def orbit_reset():
     """Queue a SatelliteTracker reinit so the warp is recomputed from now."""
@@ -232,6 +369,9 @@ def demo_trigger():
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    _load_offline_queue()
+    _load_online_alerts()
+
     sim_thread = threading.Thread(target=_sim_loop, daemon=True, name="sim-loop")
     sim_thread.start()
 

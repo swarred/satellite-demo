@@ -1,18 +1,16 @@
 [Unit]
-Description=Satellite Mission Simulation Service
-After=network.target
-StartLimitIntervalSec=60
-StartLimitBurst=3
+Description=Satellite Local LLM Alert Analysis (offline autonomous mode)
+After=ollama.service
+Requires=ollama.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -m satellite_sim.main
+ExecStart=/usr/bin/python3 /opt/satellite-sim/satellite_sim/local_analysis.py
 Environment=PYTHONPATH=/opt/satellite-sim
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
-
 StateDirectory=satellite-sim
 
 [Install]

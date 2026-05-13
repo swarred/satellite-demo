@@ -209,6 +209,12 @@
     }
     .btn-trigger:hover { background: var(--amber-bg); }
 
+    .btn-ddil {
+      border-color: var(--red);
+      color: var(--red);
+    }
+    .btn-ddil:hover { background: var(--red-bg); }
+
     .btn-reset {
       border-color: var(--green-dim);
       color: #4a7a4a;
@@ -297,6 +303,12 @@
   <!-- Operator controls -->
   <div class="operator-strip">
     <span class="strip-label">OPERATOR CONTROLS</span>
+    <button class="btn btn-ddil"
+            hx-post="/demo/ddil-on"
+            hx-swap="none"
+            onclick="this.textContent='DDIL ACTIVE'; this.disabled=true;">
+      SIMULATE DDIL
+    </button>
     <button class="btn btn-trigger"
             hx-post="/demo/trigger"
             hx-target="#alerts-container"
@@ -445,10 +457,12 @@
           if (data.lat != null) {
             orbitTrail.push({ lat: data.lat, lon: data.lon });
             if (orbitTrail.length > TRAIL_MAX) orbitTrail.shift();
+          } else {
+            orbitTrail = [];
           }
           drawOrbitMap(data);
         })
-        .catch(() => {});
+        .catch(() => { orbitTrail = []; drawOrbitMap({}); });
     }
 
     pollOrbit();

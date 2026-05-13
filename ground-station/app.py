@@ -18,6 +18,10 @@ _last_contact: float = 0.0
 # Assessments keyed by alert_id — persists across polls so cards survive re-renders
 _assessments: dict = {}
 
+# Last successful alert fetch — served stale while satellite is unreachable so
+# offline alerts remain visible during Skupper reconnect after bootc switch
+_cached_alerts: list = []
+
 
 def _get(path, timeout=3):
     global _link_up, _last_contact
@@ -40,7 +44,11 @@ def _link_status():
 
 
 def _alerts():
-    return _get("/alerts") or []
+    global _cached_alerts
+    result = _get("/alerts")
+    if result is not None:
+        _cached_alerts = result
+    return _cached_alerts
 
 
 def _alerts_annotated():
@@ -48,7 +56,7 @@ def _alerts_annotated():
     for a in alerts:
         if a.get("alert_id") in _assessments:
             a["assessment"] = _assessments[a["alert_id"]]
-    return alerts
+    return sorted(alerts, key=lambda a: a.get("timestamp", ""), reverse=True)
 
 
 def _telemetry():
@@ -56,6 +64,11 @@ def _telemetry():
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
 
 @app.get("/")
 def index():
@@ -168,9 +181,39 @@ def demo_trigger():
     return render_template("_alerts.html", alerts=_alerts())
 
 
+@app.post("/demo/ddil-on")
+def demo_ddil_on():
+    """Operator control: simulate DDIL by signalling the satellite to enter autonomous mode."""
+    try:
+        r = requests.post(f"{SATELLITE_URL}/demo/ddil-on", timeout=5)
+        r.raise_for_status()
+        return r.json()
+    except Exception as exc:
+        return {"error": str(exc)}, 502
+
+
 # ── Analysis ──────────────────────────────────────────────────────────────────
 
 def _run_analysis(alert):
+    # Alerts classified autonomously during DDIL carry their analysis inline
+    if alert.get("offline"):
+        source = alert.get("offline_source", "local_llm")
+        classification = alert.get("classification", "UNKNOWN_EMITTER")
+        if source == "local_llm_error" or classification == "UNKNOWN_EMITTER":
+            text = (
+                "Alert was captured and stored during DDIL autonomous mode. "
+                "Local LLM classification was unsuccessful — insufficient onboard resources. "
+                "Re-analysis recommended now that ground station connectivity is restored."
+            )
+        else:
+            text = alert.get("offline_summary", "Analyzed autonomously during DDIL — no ground station connectivity.")
+        return {
+            "text": text,
+            "classification": classification,
+            "model": f"{alert.get('offline_model', 'phi4-mini')} (offline local LLM)",
+            "latency": "0.0s",
+            "source": source,
+        }
     if MAAS_URL and MAAS_KEY:
         result = _maas_analysis(alert)
         if result:

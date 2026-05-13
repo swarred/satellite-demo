@@ -1,0 +1,21 @@
+---
+# ddil-detect.yml — runs in the online satellite image
+# Polls the OCP ground station health endpoint. On connectivity loss,
+# triggers bootc switch to the offline autonomous image + reboot.
+- name: Satellite DDIL Monitor
+  hosts: localhost
+  sources:
+    - connectivity_check:
+        url: "{{ ground_station_url }}/healthz"
+        delay: 20
+        timeout: 5
+
+  rules:
+    - name: Enter autonomous offline mode on DDIL
+      condition: event.url_check.status == "Failed"
+      throttle:
+        once_within: "90 seconds"
+        group_by_attributes: []
+      actions:
+        - run_playbook:
+            name: bootc-switch-offline.yml

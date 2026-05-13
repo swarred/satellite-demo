@@ -1,12 +1,30 @@
-<span class="link-status {{ 'link-online' if link.up else 'link-offline' }}"
-      hx-get="/partials/linkstatus"
-      hx-trigger="every 3s"
-      hx-swap="outerHTML">
+<div style="display:flex; gap:10px; align-items:center;"
+     hx-get="/partials/linkstatus"
+     hx-trigger="every 3s"
+     hx-swap="outerHTML">
   {% if link.up %}
-    RHSI LINK ACTIVE
-  {% elif link.elapsed is not none %}
-    LINK LOST &nbsp;·&nbsp; {{ link.elapsed }}s ago
+  <span class="link-status link-online">RHSI LINK ACTIVE</span>
   {% else %}
-    LINK LOST
+  <span class="link-status link-offline">LINK DOWN</span>
+  <span style="
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: #4ad4d4;
+      border: 1px solid #1a5555;
+      background: #001a1a;
+      padding: 2px 10px;
+      animation: pulse-offline 2s ease-in-out infinite;">
+    ◆ AUTONOMOUS OPS ACTIVE{% if link.elapsed is not none %} &nbsp;·&nbsp; {{ link.elapsed }}s{% endif %}
+  </span>
   {% endif %}
-</span>
+</div>
+
+{% if not link.up %}
+<style>
+  @keyframes pulse-offline {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.55; }
+  }
+</style>
+{% endif %}

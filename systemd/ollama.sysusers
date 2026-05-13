@@ -1,0 +1,5 @@
+# systemd-sysusers config for the Ollama LLM service user.
+# Placed at /usr/lib/sysusers.d/ in the bootc image so the user is created
+# at first boot rather than during image build — required for ostree/bootc
+# where useradd in a RUN layer doesn't reliably survive the /etc three-way merge.
+u ollama - "Ollama LLM Service" /var/lib/ollama -

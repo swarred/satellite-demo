@@ -1,0 +1,3 @@
+# Runtime home for the ollama user (cache, model state, etc).
+# Models themselves live in /usr/share/ollama/models (immutable OS image).
+d /var/lib/ollama 0755 ollama ollama -

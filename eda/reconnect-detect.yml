@@ -1,0 +1,21 @@
+---
+# reconnect-detect.yml — runs in the offline autonomous satellite image
+# Polls the OCP ground station health endpoint. On connectivity restore,
+# triggers bootc switch back to the online image + reboot.
+- name: Satellite Reconnect Monitor
+  hosts: localhost
+  sources:
+    - connectivity_check:
+        url: "{{ ground_station_url }}/healthz"
+        delay: 20
+        timeout: 5
+
+  rules:
+    - name: Restore online mode when connectivity returns
+      condition: event.url_check.status == "OK"
+      throttle:
+        once_within: "90 seconds"
+        group_by_attributes: []
+      actions:
+        - run_playbook:
+            name: bootc-switch-online.yml
