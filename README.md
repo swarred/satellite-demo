@@ -1,64 +1,71 @@
 # Satellite Demo
 
-A Red Hat Image Mode (bootc) demonstration built around a simulated satellite system.
-
-A satellite VM runs an immutable, image-based RHEL OS (bootc). It collects synthetic sensor detections and connects to an OpenShift ground station over an encrypted tunnel via Red Hat Service Interconnect (RHSI/Skupper). The ground station UI displays live telemetry and alerts, supports AI-assisted threat classification, and lets you break and restore the uplink to demonstrate DDIL resilience.
+A Red Hat Image Mode (bootc) demonstration built around a simulated LEO reconnaissance satellite. The satellite VM runs an immutable, image-based RHEL OS, connects to an OpenShift ground station over an encrypted tunnel via Red Hat Service Interconnect (RHSI), and autonomously switches to a local-LLM offline image when the uplink is lost — then switches back and syncs alerts when connectivity is restored.
 
 ## What it demonstrates
 
-- **RHEL Image Mode (bootc)** — immutable OS for edge/space infrastructure; updates and rollbacks without reprovisioning
-- **DDIL resilience** — satellite continues operating and queuing alerts when the uplink is down; data syncs on reconnect
-- **Red Hat Service Interconnect** — encrypted, pull-based tunnel between the VM and OCP; works through NAT and firewalls without inbound ports
-- **AI-assisted threat detection** — alert classification via a connected LLM (MaaS/phi-4); falls back to a local stub when disconnected
+- **RHEL Image Mode (bootc)** — immutable, image-based OS for edge and space infrastructure. Updates, rollbacks, and DDIL mode switches are atomic bootc operations, not package installs.
+- **DDIL resilience** — when the uplink drops, Event-Driven Ansible detects the outage and triggers a `bootc switch` to an offline image that includes a local LLM (llama3.2:1b via Ollama) for autonomous alert classification. Alerts queue to persistent storage and sync to the ground station on reconnect.
+- **Red Hat Service Interconnect (RHSI)** — encrypted, mTLS tunnel between the KVM satellite VM and OpenShift. Outbound-only from the VM — no inbound ports, NAT-friendly, works across network boundaries.
+- **Event-Driven Ansible** — on-satellite rulebook that monitors ground station reachability and drives the bootc switch cycle autonomously, with no operator intervention required.
+- **AI-assisted threat classification** — connected mode uses an external LLM endpoint (MaaS/phi-4). Offline mode uses llama3.2:1b running on the satellite VM. Both paths produce the same structured assessment visible in the ground station UI.
 
 ## Architecture
 
 ```
-[ Satellite VM (bootc / KVM) ]
-  satellite-sim (Flask API, orbital mechanics, alert generation)
-  skupper-router (RHSI agent — outbound link only)
-        |
-        | RHSI encrypted tunnel (port 443 outbound)
-        |
-[ OpenShift Cluster ]
-  skupper-router (OCP-side router)
-  satellite-alerts service (virtual endpoint — routes to VM)
-  ground-station pod (Flask + HTMX UI)
-        |
-  [ Browser ]  ← ground station UI
+┌─────────────────────────────────────────────────────────┐
+│  Satellite VM  (KVM / RHEL bootc)                       │
+│                                                         │
+│  satellite-sim       Flask API, orbital sim, alerts     │
+│  satellite-eda       Event-Driven Ansible, DDIL monitor │
+│  skupper-router      RHSI agent (outbound link only)    │
+│                                                         │
+│  ── offline image adds ──────────────────────────────── │
+│  ollama              llama3.2:1b local inference        │
+│  satellite-local-analysis  classifies alerts offline    │
+└─────────────────────────┬───────────────────────────────┘
+                          │  RHSI encrypted tunnel (443 outbound)
+┌─────────────────────────▼───────────────────────────────┐
+│  OpenShift Cluster                                      │
+│                                                         │
+│  skupper-router      OCP-side RHSI router               │
+│  satellite-alerts    virtual service → VM :8080         │
+│  ground-station      Flask + HTMX UI                    │
+└─────────────────────────────────────────────────────────┘
+                          │
+                       Browser
 ```
 
-## Prerequisites
+## Quick start
 
-- Fedora/RHEL host with KVM (`virsh`, `virt-install`, `podman`)
-- Active Red Hat subscription (for `registry.redhat.io` base image)
-- OpenShift cluster with RHSI operator installed
-- `oc` CLI logged in to the cluster
-- `sshpass`, `bootc-image-builder`
+Deployment is fully automated. Clone both repos as siblings, then run one playbook:
 
-## Quickstart
+```bash
+git clone https://github.com/swarred/satellite-demo
+git clone https://github.com/swarred/satellite-demo-automation
+cd satellite-demo-automation
+./setup-creds.sh          # configure MaaS credentials (optional — demo works without)
+ansible-playbook site.yml --ask-become-pass
+```
 
-See **[RUNBOOK.md](RUNBOOK.md)** for full step-by-step setup.
+See the [automation repo README](https://github.com/swarred/satellite-demo-automation) for full prerequisites and configuration.
 
-For subsequent rebuilds after the first deploy, see **[REBUILD-COMMANDS.md](REBUILD-COMMANDS.md)**.
+## Running the demo
 
-## Demo flow
-
-Once running, open the ground station URL in a browser.
-
-| Action | Command |
-|--------|---------|
-| Break the uplink | `./scripts/demo-link-down.sh` |
-| Watch satellite accumulate alerts | `./scripts/demo-watch-vm.sh` |
-| Restore the uplink | `./scripts/demo-link-up.sh` |
-
-Use the **DEMO TRIGGER** button in the UI to inject a high-confidence detection on demand.
+See **[DEMO.md](DEMO.md)** for the complete demo guide — pre-demo checklist, all three phases, UI controls reference, and timing.
 
 ## MaaS / AI classification
 
-The ground station uses an external LLM endpoint for alert classification. Credentials are injected at deploy time via an OpenShift Secret. If no MaaS credentials are configured, classification falls back to a confidence-tier stub automatically.
+The ground station uses an external LLM endpoint (OpenAI-compatible) for alert classification in connected mode. If no MaaS credentials are configured, classification falls back to a confidence-tier stub automatically — the demo works fully without MaaS.
 
-To configure MaaS credentials, create the secret in your namespace:
+To configure credentials:
+
+```bash
+cd satellite-demo-automation
+./setup-creds.sh
+```
+
+Or set them directly in the OCP namespace:
 
 ```bash
 oc create secret generic maas-credentials \
@@ -74,4 +81,13 @@ oc create secret generic maas-credentials \
 | User | `demo` |
 | Password | `satellite` |
 
-These are intentional demo credentials baked into the bootc image for local KVM access. Do not use in production images.
+Intentional demo credentials baked into the bootc image for local KVM access.
+
+## Scripts reference
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/demo-ddil-on.sh` | Break the uplink and trigger EDA detection manually (alternative to the Ansible playbook) |
+| `scripts/demo-ddil-off.sh` | Restore the uplink (alternative to the Ansible playbook) |
+| `scripts/demo-watch-offline.sh` | Stream live LLM classifications from the satellite VM during DDIL |
+| `scripts/test-local-llm.sh` | Validate llama3.2:1b output before building the offline image |
