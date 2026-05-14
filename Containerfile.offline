@@ -77,6 +77,18 @@ COPY systemd/satellite-eda-offline.service \
 COPY systemd/satellite-llm-warmup.service \
      /usr/lib/systemd/system/satellite-llm-warmup.service
 
+# ── flightctl-agent ───────────────────────────────────────────────────────────
+# Same agent and config as the online image — during DDIL the agent loses OCP
+# reachability (demonstrating the disconnected device story) and reconnects
+# automatically when connectivity is restored and the online image boots in.
+RUN dnf -y config-manager \
+      --add-repo https://rpm.flightctl.io/flightctl-epel.repo && \
+    dnf -y install flightctl-agent && \
+    systemctl enable flightctl-agent.service && \
+    systemctl mask bootc-fetch-apply-updates.timer && \
+    dnf clean all
+COPY flightctl/config.yaml /etc/flightctl/config.yaml
+
 RUN systemctl enable satellite-sim.service \
                     satellite-local-analysis.service \
                     satellite-eda.service \
