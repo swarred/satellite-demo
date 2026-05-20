@@ -115,6 +115,29 @@ def _persist_alert(alert: dict):
         log.exception("Failed to persist alert %s", alert.get("alert_id"))
 
 
+def _persist_classification(alert_id: str, classification: str):
+    """Rewrite alerts.jsonl updating the classification for one alert."""
+    try:
+        if not os.path.exists(ALERTS_FILE):
+            return
+        updated = []
+        with open(ALERTS_FILE) as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    rec = json.loads(line)
+                    if rec.get("alert_id") == alert_id:
+                        rec["classification"] = classification
+                    updated.append(json.dumps(rec) + "\n")
+                except json.JSONDecodeError:
+                    updated.append(line)
+        with open(ALERTS_FILE, "w") as f:
+            f.writelines(updated)
+    except Exception:
+        log.exception("Failed to persist classification for %s", alert_id)
+
+
 def _load_online_alerts():
     """On startup, reload online alerts that were persisted before a bootc switch."""
     if not os.path.exists(ALERTS_FILE):
@@ -265,6 +288,7 @@ def classify_alert(alert_id: str):
         for alert in _alerts:
             if alert["alert_id"] == alert_id:
                 alert["classification"] = classification
+                _persist_classification(alert_id, classification)
                 return jsonify({"classified": alert_id, "classification": classification})
     abort(404)
 
