@@ -10,6 +10,7 @@ RestartSec=3
 Environment="HOME=/var/lib/ollama"
 Environment="OLLAMA_MODELS=/usr/share/ollama/models"
 Environment="OLLAMA_KEEP_ALIVE=-1"
+Environment="OLLAMA_NO_CLOUD=true"
 
 [Install]
 WantedBy=multi-user.target
