@@ -62,15 +62,16 @@ log = logging.getLogger(__name__)
 
 
 def _analyzed_ids() -> set:
-    if not os.path.exists(OFFLINE_QUEUE):
-        return set()
     ids = set()
-    with open(OFFLINE_QUEUE) as f:
-        for line in f:
-            try:
-                ids.add(json.loads(line)["alert_id"])
-            except (json.JSONDecodeError, KeyError):
-                pass
+    for path in (OFFLINE_QUEUE, OFFLINE_QUEUE + ".loaded"):
+        if not os.path.exists(path):
+            continue
+        with open(path) as f:
+            for line in f:
+                try:
+                    ids.add(json.loads(line)["alert_id"])
+                except (json.JSONDecodeError, KeyError):
+                    pass
     return ids
 
 
