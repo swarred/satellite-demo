@@ -2,23 +2,11 @@
 Description=Pre-warm local LLM model into memory at boot
 After=ollama.service
 Requires=ollama.service
-Before=satellite-local-analysis.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/bash -c '\
-  for i in $(seq 1 24); do \
-    curl -sf http://localhost:11434/api/tags &>/dev/null && break; \
-    sleep 5; \
-  done; \
-  for i in $(seq 1 36); do \
-    CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:11434/api/generate \
-      -d "{\"model\":\"llama3.2:1b\",\"prompt\":\"hi\",\"stream\":false,\"options\":{\"num_predict\":1}}"); \
-    [ "$CODE" = "200" ] && exit 0; \
-    sleep 5; \
-  done; \
-  exit 1'
+ExecStart=/usr/local/bin/satellite-llm-warmup.sh
 StandardOutput=journal
 StandardError=journal
 

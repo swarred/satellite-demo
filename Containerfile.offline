@@ -28,7 +28,8 @@ RUN useradd -m -G wheel demo && \
 # The automation role stages the binary and model files into build/ before
 # running podman build, so no network access is needed here.
 COPY build/ollama /usr/local/bin/ollama
-RUN chmod +x /usr/local/bin/ollama
+COPY systemd/satellite-llm-warmup.sh /usr/local/bin/satellite-llm-warmup.sh
+RUN chmod +x /usr/local/bin/ollama /usr/local/bin/satellite-llm-warmup.sh
 
 # Use sysusers.d + tmpfiles.d for the ollama user and home directory.
 # useradd in a RUN layer does not reliably survive ostree's /etc three-way
