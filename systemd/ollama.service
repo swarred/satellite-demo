@@ -1,7 +1,5 @@
 [Unit]
 Description=Ollama LLM Service
-After=network-online.target
-Wants=network-online.target
 
 [Service]
 ExecStart=/usr/local/bin/ollama serve
