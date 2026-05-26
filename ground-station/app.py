@@ -70,6 +70,21 @@ def healthz():
     return {"status": "ok"}
 
 
+@app.get("/grafana/status")
+def grafana_status():
+    """Simple numeric status for Grafana stat panel — no auth required."""
+    tel = _get("/telemetry") or {}
+    return Response(
+        json.dumps([{
+            "online": 1 if _link_up else 0,
+            "lat": tel.get("lat", 0.0),
+            "lon": tel.get("lon", 0.0),
+        }]),
+        mimetype="application/json",
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
+
 @app.get("/")
 def index():
     alerts, telemetry = _alerts_annotated(), _telemetry()
