@@ -188,9 +188,10 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
 }).addTo(map);
 
 // AOI bounding box
+var aoiLayer=null;
 fetch('/grafana/aoi-polygon.geojson').then(r=>r.json()).then(d=>{
-  L.geoJSON(d,{style:{color:'#f5a623',weight:2,fillOpacity:0.12,fillColor:'#f5a623'}})
-   .bindTooltip('Persian Gulf AOI',{sticky:true}).addTo(map);
+  aoiLayer=L.geoJSON(d,{style:{color:'#f5a623',weight:2,fillOpacity:0.12,fillColor:'#f5a623'}})
+            .bindTooltip('Persian Gulf AOI',{sticky:true}).addTo(map);
 });
 
 function makeIcon(scanning){
@@ -208,9 +209,16 @@ function update(){
     var s=d[0]||{};
     var online=s.online===1, scanning=s.over_aoi===1;
     var lat=s.lat||0, lon=s.lon||0;
-    marker.setLatLng([lat,lon]);
-    marker.setIcon(makeIcon(scanning));
-    marker.setTooltipContent(scanning?'&#9679; SCANNING AOI':'&#9679; IN TRANSIT');
+    if(online){
+      marker.setLatLng([lat,lon]);
+      marker.setIcon(makeIcon(scanning));
+      marker.setTooltipContent(scanning?'&#9679; SCANNING AOI':'&#9679; IN TRANSIT');
+      if(!map.hasLayer(marker)) marker.addTo(map);
+      if(aoiLayer&&!map.hasLayer(aoiLayer)) aoiLayer.addTo(map);
+    } else {
+      if(map.hasLayer(marker)) map.removeLayer(marker);
+      if(aoiLayer&&map.hasLayer(aoiLayer)) map.removeLayer(aoiLayer);
+    }
     document.getElementById('ov').style.display=online?'none':'flex';
   }).catch(function(){});
 }
