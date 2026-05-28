@@ -146,6 +146,84 @@ def grafana_aoi_geojson():
     return grafana_satellite_geojson()
 
 
+@app.get("/grafana/map")
+def grafana_map():
+    """Self-contained Leaflet map page — embedded as iframe in Grafana."""
+    html = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  html,body{margin:0;padding:0;background:#111;height:100%}
+  #map{width:100%;height:100%}
+  .sat-dot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;
+           box-shadow:0 0 10px currentColor}
+  .sat-dot.transit{background:#52c41a;color:#52c41a}
+  .sat-dot.scanning{background:#f5a623;color:#f5a623;width:18px;height:18px}
+  .offline-overlay{position:fixed;inset:0;background:rgba(180,20,20,0.2);
+    z-index:9999;pointer-events:none;display:none;align-items:center;
+    justify-content:center;flex-direction:column;gap:8px}
+  .offline-overlay .msg{font-family:monospace;font-size:2em;font-weight:bold;
+    color:#ff4d4f;letter-spacing:4px;text-shadow:0 0 20px rgba(255,50,50,0.8);
+    animation:pulse 1.5s ease-in-out infinite}
+  .offline-overlay .sub{font-family:monospace;font-size:0.8em;color:#ff9999;
+    letter-spacing:2px;margin-top:20px}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="ov" class="offline-overlay">
+  <div class="msg">&#9888; LINK SEVERED &#9888;</div>
+  <div class="sub">SATELLITE OPERATING AUTONOMOUSLY IN DDIL MODE</div>
+</div>
+<script>
+var map = L.map('map',{zoomControl:true,attributionControl:false}).setView([20,20],2);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  subdomains:'abcd', maxZoom:19
+}).addTo(map);
+
+// AOI bounding box
+fetch('/grafana/aoi-polygon.geojson').then(r=>r.json()).then(d=>{
+  L.geoJSON(d,{style:{color:'#f5a623',weight:2,fillOpacity:0.12,fillColor:'#f5a623'}})
+   .bindTooltip('Persian Gulf AOI',{sticky:true}).addTo(map);
+});
+
+function makeIcon(scanning){
+  var cls='sat-dot '+(scanning?'scanning':'transit');
+  var sz=scanning?18:14;
+  return L.divIcon({className:'',iconSize:[sz,sz],iconAnchor:[sz/2,sz/2],
+    html:'<div class="'+cls+'"></div>'});
+}
+
+var marker=L.marker([0,0],{icon:makeIcon(false)}).addTo(map);
+marker.bindTooltip('Loading...',{permanent:false,direction:'top'});
+
+function update(){
+  fetch('/grafana/status').then(r=>r.json()).then(function(d){
+    var s=d[0]||{};
+    var online=s.online===1, scanning=s.over_aoi===1;
+    var lat=s.lat||0, lon=s.lon||0;
+    marker.setLatLng([lat,lon]);
+    marker.setIcon(makeIcon(scanning));
+    marker.setTooltipContent(scanning?'&#9679; SCANNING AOI':'&#9679; IN TRANSIT');
+    document.getElementById('ov').style.display=online?'none':'flex';
+  }).catch(function(){});
+}
+
+update();
+setInterval(update,5000);
+</script>
+</body>
+</html>"""
+    return Response(html, mimetype="text/html",
+                    headers={"Access-Control-Allow-Origin": "*"})
+
+
 @app.get("/")
 def index():
     alerts, telemetry = _alerts_annotated(), _telemetry()
