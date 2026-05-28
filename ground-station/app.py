@@ -70,19 +70,80 @@ def healthz():
     return {"status": "ok"}
 
 
+# AOI bounds — must match satellite_sim/imagery.py
+_AOI_LAT_MIN, _AOI_LAT_MAX = 18.0, 32.0
+_AOI_LON_MIN, _AOI_LON_MAX = 42.0, 75.0
+
+_CORS = {"Access-Control-Allow-Origin": "*", "Cache-Control": "no-store"}
+
+
 @app.get("/grafana/status")
 def grafana_status():
-    """Simple numeric status for Grafana stat panel — no auth required."""
+    """Live satellite status for Grafana panels — no auth required."""
     tel = _get("/telemetry") or {}
+    over_aoi = bool(tel.get("over_target", False))
     return Response(
         json.dumps([{
-            "online": 1 if _link_up else 0,
+            "online":   1 if _link_up else 0,
+            "over_aoi": 1 if (over_aoi and _link_up) else 0,
             "lat": tel.get("lat", 0.0),
             "lon": tel.get("lon", 0.0),
         }]),
         mimetype="application/json",
+        headers=_CORS,
+    )
+
+
+@app.get("/grafana/satellite.geojson")
+def grafana_satellite_geojson():
+    """Live satellite position GeoJSON — re-fetched by Grafana on each refresh."""
+    tel = _get("/telemetry") or {}
+    lat = tel.get("lat", 0.0)
+    lon = tel.get("lon", 0.0)
+    over_aoi = bool(tel.get("over_target", False)) and _link_up
+    return Response(
+        json.dumps({
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "properties": {
+                    "name": "SCANNING AOI" if over_aoi else "IN TRANSIT",
+                    "over_aoi": 1 if over_aoi else 0,
+                },
+            }]
+        }),
+        mimetype="application/json",
+        headers=_CORS,
+    )
+
+
+@app.get("/grafana/aoi-polygon.geojson")
+def grafana_aoi_polygon():
+    """Static AOI bounding box polygon for Grafana geomap."""
+    lo, hi = _AOI_LON_MIN, _AOI_LON_MAX
+    la, lb = _AOI_LAT_MIN, _AOI_LAT_MAX
+    return Response(
+        json.dumps({
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[lo, la],[hi, la],[hi, lb],[lo, lb],[lo, la]]],
+                },
+                "properties": {"name": "Persian Gulf AOI"},
+            }]
+        }),
+        mimetype="application/json",
         headers={"Access-Control-Allow-Origin": "*"},
     )
+
+
+@app.get("/grafana/aoi.geojson")
+def grafana_aoi_geojson():
+    """Legacy endpoint — kept for backwards compat."""
+    return grafana_satellite_geojson()
 
 
 @app.get("/")
