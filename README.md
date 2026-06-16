@@ -1,5 +1,7 @@
 # Satellite Demo
 
+**[Live demo preview →](https://swarred.github.io/satellite-demo/)**
+
 A Red Hat Image Mode (bootc) demonstration built around a simulated LEO reconnaissance satellite. The satellite VM runs an immutable, image-based RHEL OS, connects to an OpenShift ground station over an encrypted tunnel via Red Hat Service Interconnect (RHSI), and autonomously switches to a local-LLM offline image when the uplink is lost — then switches back and syncs alerts when connectivity is restored.
 
 ## What it demonstrates

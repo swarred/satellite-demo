@@ -24,6 +24,7 @@ async def main(queue: asyncio.Queue, args: dict):
     # triggering an immediate bootc switch.
     failure_threshold = int(args.get("failure_threshold", 3))
 
+    # OCP routes use cluster-internal CAs not trusted by the system store
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
